@@ -31,6 +31,21 @@ public sealed class RagOptions
 
     public double EffectiveMinScore => UseLocalAiFallback ? LocalMinScore : MinScore;
 
+    /// <summary>Combine vector search with BM25 keyword search (reciprocal rank fusion). False = vector search only.</summary>
+    public bool HybridSearch { get; set; } = true;
+
+    /// <summary>
+    /// A passage found only by keyword search (its cosine is below MinScore) is used when it contains at least
+    /// this share of the question's terms (stopwords excluded). 1.0 = every term: this admits terse exact-term
+    /// queries ("Redis caching", "Q3-2026") without admitting passages that share generic words — at 0.5,
+    /// "What is the best way to learn the guitar?" matched a paper containing "best", "way" and "learn".
+    /// Keyword matches still re-rank passages the semantic search admitted, whatever their coverage.
+    /// </summary>
+    public double MinKeywordCoverage { get; set; } = 1.0;
+
+    /// <summary>Candidates taken from each search before fusion; the best TopK of the fused list are used.</summary>
+    public int SearchCandidates { get; set; } = 20;
+
     public int EmbeddingBatchSize { get; set; } = 32;   // chunks per embedding request / vector upsert
 
     /// <summary>Retries of transient Ollama/Qdrant failures (connection refused, 5xx, 408, 429); 0 disables.</summary>

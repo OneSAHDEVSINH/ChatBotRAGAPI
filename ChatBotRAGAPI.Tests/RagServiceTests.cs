@@ -100,7 +100,7 @@ public class RagServiceTests
         var generator = new RecordingGenerator();
         var answer = await Service(new FakeStore(new SearchHit("best", "a.txt", 0.8)), generator).AskStreamingAsync("q", null, Ct);
 
-        Assert.Equal([new ContextSource(1, "a.txt", 0.8)], answer.Sources);
+        Assert.Equal([new ContextSource(1, "a.txt", 0.8, "semantic")], answer.Sources);
         Assert.Equal("generated", await Collect(answer.Pieces));
     }
 
@@ -143,7 +143,7 @@ public class RagServiceTests
         Assert.Equal(["best", "good"], generator.Context!.Select(h => h.Text));
         Assert.Equal(["best", "good"], result.Context);
         Assert.Equal(
-            [new ContextSource(1, "a.txt", 0.7123), new ContextSource(2, "https://example.com/", 0.5)],
+            [new ContextSource(1, "a.txt", 0.7123, "semantic"), new ContextSource(2, "https://example.com/", 0.5, "semantic")],
             result.Sources);
     }
 

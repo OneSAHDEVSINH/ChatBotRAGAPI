@@ -4,11 +4,16 @@ using ChatBotRAGAPI.Contracts;
 using ChatBotRAGAPI.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ChatBotRAGAPI.Tests;
 
 /// <summary>Runs the real app with the in-memory store and local AI fallback, so no Ollama/Qdrant is needed.</summary>
-public sealed class RagApiFactory(string? dataDirectory = null, IReadOnlyDictionary<string, string>? settings = null)
+public sealed class RagApiFactory(
+    string? dataDirectory = null,
+    IReadOnlyDictionary<string, string>? settings = null,
+    Action<IServiceCollection>? services = null)
     : WebApplicationFactory<Program>
 {
     private readonly bool _ownsDirectory = dataDirectory is null;
@@ -24,6 +29,7 @@ public sealed class RagApiFactory(string? dataDirectory = null, IReadOnlyDiction
         builder.UseSetting("Logging:LogLevel:Microsoft.AspNetCore", "Error"); // test server: no https port / body-size features
         foreach (var (key, value) in settings ?? new Dictionary<string, string>())
             builder.UseSetting(key, value);
+        if (services is not null) builder.ConfigureTestServices(services);
     }
 
     protected override void Dispose(bool disposing)

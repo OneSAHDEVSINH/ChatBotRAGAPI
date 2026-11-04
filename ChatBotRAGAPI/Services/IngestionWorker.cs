@@ -15,6 +15,7 @@ public sealed class IngestionWorker : BackgroundService
     private readonly IEmbeddingClient _embeddingClient;
     private readonly IVectorStore _vectorStore;
     private readonly DocumentRegistry _registry;
+    private readonly KeywordIndex _keywords;
     private readonly RagOptions _options;
     private readonly ILogger<IngestionWorker> _logger;
 
@@ -26,6 +27,7 @@ public sealed class IngestionWorker : BackgroundService
         IEmbeddingClient embeddingClient,
         IVectorStore vectorStore,
         DocumentRegistry registry,
+        KeywordIndex keywords,
         IOptions<RagOptions> options,
         ILogger<IngestionWorker> logger)
     {
@@ -36,6 +38,7 @@ public sealed class IngestionWorker : BackgroundService
         _embeddingClient = embeddingClient;
         _vectorStore = vectorStore;
         _registry = registry;
+        _keywords = keywords;
         _options = options.Value;
         _logger = logger;
     }
@@ -44,7 +47,8 @@ public sealed class IngestionWorker : BackgroundService
     {
         Directory.CreateDirectory(_options.DataDirectory);
         await EnsureVectorStoreAsync(stoppingToken);
-        if (!_vectorStore.IsPersistent) EnqueueReindex();
+        if (_vectorStore.IsPersistent) await RebuildKeywordIndexAsync(stoppingToken);
+        else EnqueueReindex();
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -112,6 +116,33 @@ public sealed class IngestionWorker : BackgroundService
     }
 
     private const string ReindexSourceType = "reindex";
+
+    /// <summary>
+    /// A persistent store (Qdrant) keeps its vectors across restarts, but the in-memory keyword index does not.
+    /// Rebuild it from the stored texts by re-chunking (no embedding needed). Only chunks whose ids the registry
+    /// knows are added, so a changed ChunkSize can't put chunks in the keyword index that the store doesn't have.
+    /// </summary>
+    private async Task RebuildKeywordIndexAsync(CancellationToken ct)
+    {
+        var added = 0;
+        foreach (var doc in _registry.List())
+        {
+            var path = _registry.TextPath(doc.Source);
+            if (!File.Exists(path)) continue;
+
+            var known = doc.ChunkIds.ToHashSet();
+            var text = await File.ReadAllTextAsync(path, ct);
+            foreach (var chunk in _chunker.Chunk(text, _options.ChunkSize, _options.ChunkOverlap))
+            {
+                var id = ChunkId(doc.Source, chunk);
+                if (!known.Contains(id)) continue;
+                _keywords.Upsert(id, chunk, doc.Source);
+                added++;
+            }
+        }
+
+        if (added > 0) _logger.LogInformation("Keyword index rebuilt with {Count} chunk(s)", added);
+    }
 
     /// <summary>
     /// The in-memory store starts empty on every run; rebuild it from the stored document texts.

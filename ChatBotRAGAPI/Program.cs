@@ -53,12 +53,20 @@ builder.Services.AddHttpClient<WebScraperService>(client =>
 // Vector store
 if (ragOptions.UseInMemoryVectorStore)
 {
-    builder.Services.AddSingleton<IVectorStore, InMemoryVectorStore>();
+    builder.Services.AddSingleton<InMemoryVectorStore>();
 }
 else
 {
-    builder.Services.AddHttpClient<IVectorStore, QdrantClient>().AddBackendRetries(ragOptions);
+    builder.Services.AddHttpClient<QdrantClient>().AddBackendRetries(ragOptions);
 }
+
+// Everything goes through the decorator so the keyword index (hybrid search) mirrors the store.
+builder.Services.AddSingleton<KeywordIndex>();
+builder.Services.AddSingleton<IVectorStore>(sp => new KeywordIndexingVectorStore(
+    ragOptions.UseInMemoryVectorStore
+        ? sp.GetRequiredService<InMemoryVectorStore>()
+        : sp.GetRequiredService<QdrantClient>(),
+    sp.GetRequiredService<KeywordIndex>()));
 
 // AI layer
 if (ragOptions.UseLocalAiFallback)
