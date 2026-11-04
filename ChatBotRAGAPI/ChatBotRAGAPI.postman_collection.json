@@ -1,85 +1,340 @@
 {
   "info": {
-    "name": "ChatBotRAGAPI E2E",
-    "_postman_id": "1c4ce8f2-24ad-4a08-9a5a-8b1301fd8a56",
-    "description": "E2E tests for ingestion and chat",
+    "name": "ChatBotRAGAPI",
+    "description": "Requests for every endpoint. Set the collection variables first: baseUrl, and apiKey when the server has Security:ApiKey set (sent as X-Api-Key to ingestion and document endpoints; chat and health are open). Upload/scrape store the returned jobId for 'Job status'.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
-      "value": "https://localhost:7105"
+      "value": "http://localhost:5170"
+    },
+    {
+      "key": "apiKey",
+      "value": ""
     },
     {
       "key": "jobId",
       "value": ""
+    },
+    {
+      "key": "source",
+      "value": "company_profile.txt"
     }
   ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-Api-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
   "item": [
     {
       "name": "Health",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/health"
-      }
-    },
-    {
-      "name": "Ingestion - Scrape URL",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"url\": \"https://example.com\"\n}"
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
         },
-        "url": "{{baseUrl}}/api/ingestion/scrape"
-      }
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
     },
     {
-      "name": "Ingestion - Upload File",
-      "request": {
-        "method": "POST",
-        "body": {
-          "mode": "formdata",
-          "formdata": [
+      "name": "Ingestion",
+      "item": [
+        {
+          "name": "Scrape URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ingestion/scrape",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ingestion",
+                "scrape"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Public http(s) URLs only; private/loopback addresses are rejected."
+          },
+          "event": [
             {
-              "key": "file",
-              "type": "file",
-              "src": ""
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+                  "pm.collectionVariables.set('jobId', pm.response.json().jobId);"
+                ]
+              }
             }
           ]
         },
-        "url": "{{baseUrl}}/api/ingestion/upload"
-      }
-    },
-    {
-      "name": "Ingestion - Job Status",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/api/ingestion/{{jobId}}"
-      }
-    },
-    {
-      "name": "Chat - Ask",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"question\": \"Summarize what data is available\"\n}"
+        {
+          "name": "Upload file",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ingestion/upload",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ingestion",
+                "upload"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "description": "txt, csv, docx, xlsx or pdf. Choose the file in the Body tab. Re-uploading the same file name replaces that document."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+                  "pm.collectionVariables.set('jobId', pm.response.json().jobId);"
+                ]
+              }
+            }
+          ]
         },
-        "url": "{{baseUrl}}/api/chat/ask"
-      }
+        {
+          "name": "Job status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ingestion/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ingestion",
+                "{{jobId}}"
+              ]
+            },
+            "description": "Queued -> Running -> Completed | Failed (with message)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "auth": {
+        "type": "noauth"
+      },
+      "item": [
+        {
+          "name": "Ask",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/ask",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "ask"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"When was the company founded?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Ask follow-up (with history)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/ask",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "ask"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"And where is the head office?\",\n  \"history\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"When was the company founded?\"\n    },\n    {\n      \"role\": \"assistant\",\n      \"content\": \"The company was founded in 2016 [1].\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The server keeps no conversation state: send earlier turns as history."
+          }
+        },
+        {
+          "name": "Ask (streaming, SSE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/ask/stream",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "ask",
+                "stream"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"When was the company founded?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Server-Sent Events: sources, then delta..., then done (or error). Accepts history too."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "List documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/documents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "documents"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete document",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/documents?source={{source}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "documents"
+              ],
+              "query": [
+                {
+                  "key": "source",
+                  "value": "{{source}}"
+                }
+              ]
+            },
+            "description": "source = file name or URL exactly as listed (URL-encode URLs)."
+          }
+        }
+      ]
     }
   ]
 }
