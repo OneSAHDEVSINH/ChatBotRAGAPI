@@ -17,4 +17,5 @@ public sealed class RagOptions
     public int MaxGenerateTokens { get; set; } = 180;
     public int NumCtx { get; set; } = 2048;
     public string KeepAlive { get; set; } = "10m";
+    public int JobStatusRetentionMinutes { get; set; } = 60; // finished job statuses are dropped after this
 }

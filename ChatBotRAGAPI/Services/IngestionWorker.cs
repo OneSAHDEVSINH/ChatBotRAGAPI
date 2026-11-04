@@ -69,6 +69,26 @@ public sealed class IngestionWorker : BackgroundService
                 _logger.LogError(ex, "Ingestion failed for JobId {JobId}", job.JobId);
                 _queue.MarkFailed(job.JobId, ex.Message);
             }
+            finally
+            {
+                if (job.SourceType == "file") DeleteUpload(job.SourceValue);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Uploaded files are only a hand-off from the controller; the extracted text is kept in
+    /// {jobId}_raw.txt, so the original is removed whether ingestion succeeded or failed.
+    /// </summary>
+    private void DeleteUpload(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Could not delete uploaded file {Path}", path);
         }
     }
 
