@@ -5,11 +5,11 @@ public sealed class RagOptions
     public string DataDirectory { get; set; } = "data";
     public bool UseInMemoryVectorStore { get; set; } = true;
     public bool UseLocalAiFallback { get; set; } = false; // true => no Ollama required (hashed embeddings, extractive answers)
-    public string QdrantBaseUrl { get; set; } = "http://localhost:6333";
+    public string QdrantBaseUrl { get; set; } = "http://127.0.0.1:6333"; // not "localhost": on Windows .NET tries ::1 first and each refused address costs ~2 s
     public string QdrantCollection { get; set; } = "knowledge";
     public string EmbeddingModel { get; set; } = "text-embedding-nomic:latest";
     public string ChatModel { get; set; } = "gpt-5-qwen3:latest";
-    public string OllamaBaseUrl { get; set; } = "http://localhost:11434";
+    public string OllamaBaseUrl { get; set; } = "http://127.0.0.1:11434";
     public int ChunkSize { get; set; } = 700;
     public int ChunkOverlap { get; set; } = 80;
     public int TopK { get; set; } = 3;
@@ -32,6 +32,12 @@ public sealed class RagOptions
     public double EffectiveMinScore => UseLocalAiFallback ? LocalMinScore : MinScore;
 
     public int EmbeddingBatchSize { get; set; } = 32;   // chunks per embedding request / vector upsert
+
+    /// <summary>Retries of transient Ollama/Qdrant failures (connection refused, 5xx, 408, 429); 0 disables.</summary>
+    public int HttpRetryAttempts { get; set; } = 2;
+
+    /// <summary>First retry delay; doubles per attempt with jitter (~0.5 s, ~1 s by default). Kept short: a chat request waits through all attempts, and on Windows each refused connection already costs ~2 s.</summary>
+    public double HttpRetryBaseDelaySeconds { get; set; } = 0.5;
 
     /// <summary>Only the most recent this-many history messages are used (prompt size grows with each turn).</summary>
     public int MaxHistoryMessages { get; set; } = 6;

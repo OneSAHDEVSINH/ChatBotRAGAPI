@@ -33,6 +33,8 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 builder.Services.AddHealthChecks();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<BackendUnavailableHandler>();
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -55,7 +57,7 @@ if (ragOptions.UseInMemoryVectorStore)
 }
 else
 {
-    builder.Services.AddHttpClient<IVectorStore, QdrantClient>();
+    builder.Services.AddHttpClient<IVectorStore, QdrantClient>().AddBackendRetries(ragOptions);
 }
 
 // AI layer
@@ -70,7 +72,7 @@ else
     {
         client.BaseAddress = new Uri(ragOptions.OllamaBaseUrl);
         client.Timeout = TimeSpan.FromMinutes(10); // important
-    });
+    }).AddBackendRetries(ragOptions);
 
     builder.Services.AddSingleton<IEmbeddingClient>(sp => sp.GetRequiredService<OllamaClient>());
     builder.Services.AddSingleton<IAnswerGenerator>(sp => sp.GetRequiredService<OllamaClient>());
@@ -95,6 +97,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseExceptionHandler();
 app.UseHttpsRedirection();
 app.UseRateLimiter();
 app.UseAuthorization();
