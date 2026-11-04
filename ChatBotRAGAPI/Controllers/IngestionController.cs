@@ -1,6 +1,8 @@
 ﻿using ChatBotRAGAPI.Contracts;
 using ChatBotRAGAPI.Services;
+using ChatBotRAGAPI.Settings;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace ChatBotRAGAPI.Controllers;
 
@@ -9,12 +11,12 @@ namespace ChatBotRAGAPI.Controllers;
 public sealed class IngestionController : ControllerBase
 {
     private readonly IngestionQueue _queue;
-    private readonly IWebHostEnvironment _env;
+    private readonly RagOptions _options;
 
-    public IngestionController(IngestionQueue queue, IWebHostEnvironment env)
+    public IngestionController(IngestionQueue queue, IOptions<RagOptions> options)
     {
         _queue = queue;
-        _env = env;
+        _options = options.Value;
     }
 
     [HttpPost("scrape")]
@@ -41,7 +43,7 @@ public sealed class IngestionController : ControllerBase
         if (ext is not (".txt" or ".csv" or ".docx" or ".xlsx"))
             return BadRequest("Only txt/csv/docx/xlsx are supported.");
 
-        var inbox = Path.Combine(_env.ContentRootPath, "data", "inbox");
+        var inbox = Path.Combine(_options.DataDirectory, "inbox");
         Directory.CreateDirectory(inbox);
 
         var savedPath = Path.Combine(inbox, $"{Guid.NewGuid()}{ext}");

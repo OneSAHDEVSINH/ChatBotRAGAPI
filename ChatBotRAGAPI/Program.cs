@@ -5,6 +5,9 @@ using System.Threading.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<RagOptions>(builder.Configuration.GetSection("Rag"));
+// Resolve DataDirectory against the content root (not the process CWD) so uploads and the worker agree on one location.
+builder.Services.PostConfigure<RagOptions>(o =>
+    o.DataDirectory = Path.GetFullPath(o.DataDirectory, builder.Environment.ContentRootPath));
 var ragOptions = builder.Configuration.GetSection("Rag").Get<RagOptions>() ?? new RagOptions();
 
 builder.Services.AddControllers();
