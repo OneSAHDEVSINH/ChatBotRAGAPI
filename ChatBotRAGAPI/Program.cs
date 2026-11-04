@@ -27,16 +27,14 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
-//builder.Services.AddHttpClient<WebScraperService>();
-//builder.Services.AddHttpClient<OllamaClient>();
-//builder.Services.AddHttpClient<QdrantClient>();
 builder.Services.AddHttpClient<WebScraperService>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("ChatBotRAGAPI/1.0 (+https://localhost)");
     client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
     client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
-});
+})
+.ConfigurePrimaryHttpMessageHandler(UrlSafety.CreateHandler); // SSRF guard: public addresses only
 // Vector store
 if (ragOptions.UseInMemoryVectorStore)
 {

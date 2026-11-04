@@ -20,8 +20,12 @@ public sealed class IngestionController : ControllerBase
     [HttpPost("scrape")]
     public ActionResult<EnqueueResponse> Scrape([FromBody] ScrapeRequest request)
     {
-        if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _))
-            return BadRequest("Invalid URL.");
+        if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var uri) || !UrlSafety.IsAllowedScheme(uri))
+            return BadRequest("Invalid URL. Only absolute http/https URLs are supported.");
+
+        // Fast rejection for literal private IPs; hostnames are checked at connect time by the scraper's handler.
+        if (System.Net.IPAddress.TryParse(uri.Host.Trim('[', ']'), out var ip) && !UrlSafety.IsPublicAddress(ip))
+            return BadRequest("URLs pointing to private, loopback or link-local addresses are not allowed.");
 
         var jobId = _queue.Enqueue("url", request.Url);
         return Accepted(new EnqueueResponse(jobId, "Queued"));
