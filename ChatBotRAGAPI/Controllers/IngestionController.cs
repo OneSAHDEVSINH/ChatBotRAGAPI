@@ -40,8 +40,8 @@ public sealed class IngestionController : ControllerBase
         if (file is null || file.Length == 0) return BadRequest("Empty file.");
 
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (ext is not (".txt" or ".csv" or ".docx" or ".xlsx"))
-            return BadRequest("Only txt/csv/docx/xlsx are supported.");
+        if (!FileTextExtractor.SupportedExtensions.Contains(ext))
+            return BadRequest($"Supported file types: {string.Join(", ", FileTextExtractor.SupportedExtensions)}.");
 
         var inbox = Path.Combine(_options.DataDirectory, "inbox");
         Directory.CreateDirectory(inbox);

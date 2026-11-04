@@ -51,7 +51,7 @@ public sealed class FileTextExtractorTests : IDisposable
     [Fact]
     public async Task Unsupported_extension_throws()
     {
-        var path = Path.Combine(_dir, "x.pdf");
+        var path = Path.Combine(_dir, "x.pptx");
         await File.WriteAllTextAsync(path, "x", Ct);
         await Assert.ThrowsAsync<NotSupportedException>(() => _extractor.ExtractAsync(path, Ct));
     }
