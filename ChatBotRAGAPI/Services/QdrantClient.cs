@@ -1,6 +1,7 @@
 ﻿using ChatBotRAGAPI.Contracts;
 using ChatBotRAGAPI.Settings;
 using Microsoft.Extensions.Options;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 
@@ -20,17 +21,55 @@ public sealed class QdrantClient : IVectorStore
 
     public async Task EnsureCollectionAsync(CancellationToken ct)
     {
+        var collectionPath = $"/collections/{_options.QdrantCollection}";
+
+        using (var existing = await _httpClient.GetAsync(collectionPath, ct))
+        {
+            if (existing.IsSuccessStatusCode)
+            {
+                await VerifyVectorSizeAsync(existing, ct);
+                return;
+            }
+
+            if (existing.StatusCode != HttpStatusCode.NotFound)
+                existing.EnsureSuccessStatusCode();
+        }
+
         var body = JsonSerializer.Serialize(new
         {
             vectors = new { size = _options.EmbeddingDimensions, distance = "Cosine" }
         });
 
         using var response = await _httpClient.PutAsync(
-            $"/collections/{_options.QdrantCollection}",
+            collectionPath,
             new StringContent(body, Encoding.UTF8, "application/json"),
             ct);
 
+        // 409 = created concurrently by another instance; treat as success.
+        if (response.StatusCode == HttpStatusCode.Conflict) return;
         response.EnsureSuccessStatusCode();
+    }
+
+    private async Task VerifyVectorSizeAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        var json = await response.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(json);
+
+        // Unnamed-vector collections expose result.config.params.vectors.size.
+        if (doc.RootElement.TryGetProperty("result", out var result) &&
+            result.TryGetProperty("config", out var config) &&
+            config.TryGetProperty("params", out var parameters) &&
+            parameters.TryGetProperty("vectors", out var vectors) &&
+            vectors.ValueKind == JsonValueKind.Object &&
+            vectors.TryGetProperty("size", out var sizeElement) &&
+            sizeElement.TryGetInt32(out var size) &&
+            size != _options.EmbeddingDimensions)
+        {
+            throw new InvalidOperationException(
+                $"Qdrant collection '{_options.QdrantCollection}' has vector size {size}, " +
+                $"but Rag:EmbeddingDimensions is {_options.EmbeddingDimensions}. " +
+                "Use a different Rag:QdrantCollection or delete the existing collection.");
+        }
     }
 
     public async Task UpsertAsync(Guid id, float[] vector, string text, string source, CancellationToken ct)
