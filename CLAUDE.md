@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-ASP.NET Core Web API (.NET 10, SDK pinned via `global.json`; single project `ChatBotRAGAPI/`, solution `ChatBotRAGAPI.slnx`) that implements a retrieval-augmented-generation chatbot: content is ingested from URLs or uploaded files, chunked, embedded, stored in a vector store, and then queried via `/api/chat/ask`. There is no test project.
+ASP.NET Core Web API (.NET 10, SDK pinned via `global.json`; single project `ChatBotRAGAPI/`, solution `ChatBotRAGAPI.slnx`) that implements a retrieval-augmented-generation chatbot: content is ingested from URLs or uploaded files, chunked, embedded, stored in a vector store, and then queried via `/api/chat/ask`. Tests live in `ChatBotRAGAPI.Tests/` (xUnit v3).
 
 ## Commands
 
@@ -12,12 +12,16 @@ Run from the repo root (or `ChatBotRAGAPI/`):
 
 ```bash
 dotnet build ChatBotRAGAPI.slnx
+dotnet test                                                 # all tests; needs no Ollama/Qdrant/network
+dotnet test --filter-class ChatBotRAGAPI.Tests.TextChunkerTests      # one class (or --filter-method "*Name*")
 dotnet run --project ChatBotRAGAPI --launch-profile http    # http://localhost:5170, Swagger at /swagger (Development only)
 docker compose -f ChatBotRAGAPI/docker-compose.yml up -d    # Qdrant :6333 + Ollama :11434
 ollama list                                                 # models must match Rag:EmbeddingModel / Rag:ChatModel
 ```
 
 `appsettings.json` names the locally installed models `text-embedding-nomic:latest` (a nomic-embed-text build, 768 dims) and `gpt-5-qwen3:latest` (qwen3 8B). On a machine without them, pull e.g. `nomic-embed-text` and a chat model and override the names via config/env (`Rag__EmbeddingModel`, `Rag__ChatModel`); a different embedding model needs `EmbeddingDimensions` and `MinScore` recalibrated.
+
+`global.json` opts `dotnet test` into Microsoft.Testing.Platform (required for xUnit v3 on the .NET 10 SDK), so use MTP-style filters, not `--filter`. Unit tests cover services with fakes/`StubHttpHandler`; `ApiTests` boot the real app through `RagApiFactory` (`WebApplicationFactory<Program>` with in-memory store + local AI fallback + temp `DataDirectory`, set via `UseSetting` so `Program.cs` sees them before backends are chosen).
 
 Manual API testing: `ChatBotRAGAPI/ChatBotRAGAPI.http` and `ChatBotRAGAPI/ChatBotRAGAPI.postman_collection.json`. Sample ingestion inputs (txt/csv/docx/xlsx) live in `ChatBotRAGAPI/testdata/`.
 
