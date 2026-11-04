@@ -1,5 +1,7 @@
 ﻿using ChatBotRAGAPI.Settings;
 using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ChatBotRAGAPI.Services;
 
@@ -57,7 +59,7 @@ public sealed class IngestionWorker : BackgroundService
                 foreach (var chunk in chunks)
                 {
                     var vec = await _embeddingClient.EmbedAsync(chunk, stoppingToken);
-                    await _vectorStore.UpsertAsync(Guid.NewGuid(), vec, chunk, job.SourceValue, stoppingToken);
+                    await _vectorStore.UpsertAsync(ChunkId(chunk), vec, chunk, job.SourceValue, stoppingToken);
                 }
 
                 _queue.MarkCompleted(job.JobId);
@@ -68,5 +70,15 @@ public sealed class IngestionWorker : BackgroundService
                 _queue.MarkFailed(job.JobId, ex.Message);
             }
         }
+    }
+
+    /// <summary>
+    /// Content-derived id so re-ingesting identical text overwrites the existing point
+    /// instead of adding a duplicate (which would crowd out other results in TopK).
+    /// </summary>
+    private static Guid ChunkId(string chunk)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(chunk));
+        return new Guid(hash.AsSpan(0, 16));
     }
 }
