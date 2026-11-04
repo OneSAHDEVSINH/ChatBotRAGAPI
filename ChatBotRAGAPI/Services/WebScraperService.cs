@@ -33,13 +33,27 @@ public sealed class WebScraperService
             node.Remove();
         }
 
-        var primary = doc.QuerySelector("main, article, .content, .main-content, #content");
-        var text = primary?.TextContent ?? doc.Body?.TextContent ?? string.Empty;
+        // TextContent glues adjacent blocks together ("Heading</h2><p>Text" -> "HeadingText"), so mark
+        // block boundaries with newlines first; the chunker relies on them to split on paragraphs.
+        foreach (var el in doc.QuerySelectorAll("br")) el.Replace(doc.CreateTextNode("\n"));
+        foreach (var el in doc.QuerySelectorAll("li, tr, dt, dd")) el.After(doc.CreateTextNode("\n"));
+        foreach (var el in doc.QuerySelectorAll("td, th")) el.After(doc.CreateTextNode(" "));
+        foreach (var el in doc.QuerySelectorAll("p, h1, h2, h3, h4, h5, h6, div, section, article, blockquote, pre, table, ul, ol, dl"))
+            el.After(doc.CreateTextNode("\n\n"));
 
-        text = Regex.Replace(text, @"\s+", " ").Trim();
+        var primary = doc.QuerySelector("main, article, .content, .main-content, #content");
+        var text = NormalizeWhitespace(primary?.TextContent ?? doc.Body?.TextContent ?? string.Empty);
         var title = Regex.Replace(doc.Title ?? string.Empty, @"\s+", " ").Trim();
 
-        return string.IsNullOrWhiteSpace(title) ? text : $"{title}\n{text}";
-        //return $"{doc.Title}\n{doc.Body?.TextContent}".Trim();
+        return string.IsNullOrWhiteSpace(title) ? text : $"{title}\n\n{text}";
+    }
+
+    /// <summary>Collapses runs of spaces within lines and blank-line runs to a single paragraph break.</summary>
+    private static string NormalizeWhitespace(string text)
+    {
+        text = Regex.Replace(text, @"[^\S\n]+", " ");          // spaces/tabs/nbsp -> one space (keep \n)
+        text = Regex.Replace(text, @" *\n *", "\n");            // trim around line breaks
+        text = Regex.Replace(text, @"\n{3,}", "\n\n");          // at most one blank line
+        return text.Trim();
     }
 }

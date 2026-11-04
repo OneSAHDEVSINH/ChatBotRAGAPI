@@ -21,13 +21,33 @@ public sealed class FileTextExtractor
         };
     }
 
+    /// <summary>
+    /// One line per paragraph, with runs concatenated (Word often splits a word across runs, so joining
+    /// with spaces would break words) and line breaks/tabs kept, so the chunker can split on structure.
+    /// </summary>
     private static string ExtractDocx(string filePath)
     {
         using var doc = WordprocessingDocument.Open(filePath, false);
-        return string.Join(' ', doc.MainDocumentPart?
-            .Document?
-            .Descendants<Text>()
-            .Select(t => t.Text) ?? []);
+        var body = doc.MainDocumentPart?.Document?.Body;
+        if (body is null) return string.Empty;
+
+        var sb = new StringBuilder();
+        foreach (var paragraph in body.Descendants<Paragraph>())
+        {
+            foreach (var element in paragraph.Descendants())
+            {
+                switch (element)
+                {
+                    case Text t: sb.Append(t.Text); break;
+                    case Break: sb.Append('\n'); break;
+                    case TabChar: sb.Append('\t'); break;
+                }
+            }
+
+            sb.Append('\n');
+        }
+
+        return sb.ToString();
     }
 
     private static string ExtractXlsx(string filePath)
