@@ -14,9 +14,10 @@ Run from the repo root (or `ChatBotRAGAPI/`):
 dotnet build ChatBotRAGAPI.slnx
 dotnet run --project ChatBotRAGAPI --launch-profile http    # http://localhost:5170, Swagger at /swagger (Development only)
 docker compose -f ChatBotRAGAPI/docker-compose.yml up -d    # Qdrant :6333 + Ollama :11434
-docker exec ollama ollama pull nomic-embed-text             # embedding model
-docker exec ollama ollama pull phi3:mini                    # chat model (appsettings "ChatModel")
+ollama list                                                 # models must match Rag:EmbeddingModel / Rag:ChatModel
 ```
+
+`appsettings.json` names the locally installed models `text-embedding-nomic:latest` (a nomic-embed-text build, 768 dims) and `gpt-5-qwen3:latest` (qwen3 8B). On a machine without them, pull e.g. `nomic-embed-text` and a chat model and override the names via config/env (`Rag__EmbeddingModel`, `Rag__ChatModel`); a different embedding model needs `EmbeddingDimensions` and `MinScore` recalibrated.
 
 Manual API testing: `ChatBotRAGAPI/ChatBotRAGAPI.http` and `ChatBotRAGAPI/ChatBotRAGAPI.postman_collection.json`. Sample ingestion inputs (txt/csv/docx/xlsx) live in `ChatBotRAGAPI/testdata/`.
 
