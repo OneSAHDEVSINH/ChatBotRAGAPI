@@ -8,7 +8,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace ChatBotRAGAPI.Tests;
 
 /// <summary>Runs the real app with the in-memory store and local AI fallback, so no Ollama/Qdrant is needed.</summary>
-public sealed class RagApiFactory(string? dataDirectory = null) : WebApplicationFactory<Program>
+public sealed class RagApiFactory(string? dataDirectory = null, IReadOnlyDictionary<string, string>? settings = null)
+    : WebApplicationFactory<Program>
 {
     private readonly bool _ownsDirectory = dataDirectory is null;
     public string DataDirectory { get; } = dataDirectory ?? Directory.CreateTempSubdirectory("ragapi-").FullName;
@@ -21,6 +22,8 @@ public sealed class RagApiFactory(string? dataDirectory = null) : WebApplication
         builder.UseSetting("Rag:DataDirectory", DataDirectory);
         builder.UseSetting("Logging:LogLevel:Default", "Warning");
         builder.UseSetting("Logging:LogLevel:Microsoft.AspNetCore", "Error"); // test server: no https port / body-size features
+        foreach (var (key, value) in settings ?? new Dictionary<string, string>())
+            builder.UseSetting(key, value);
     }
 
     protected override void Dispose(bool disposing)

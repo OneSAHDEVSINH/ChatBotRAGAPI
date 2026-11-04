@@ -1,6 +1,8 @@
-﻿using ChatBotRAGAPI.Services;
+﻿using ChatBotRAGAPI.Security;
+using ChatBotRAGAPI.Services;
 using ChatBotRAGAPI.Settings;
-using System.Threading.RateLimiting;
+using Microsoft.Extensions.Options;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,24 +12,32 @@ builder.Services.PostConfigure<RagOptions>(o =>
     o.DataDirectory = Path.GetFullPath(o.DataDirectory, builder.Environment.ContentRootPath));
 var ragOptions = builder.Configuration.GetSection("Rag").Get<RagOptions>() ?? new RagOptions();
 
+builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection("Security"));
+var rateLimitOptions = builder.Configuration.GetSection("RateLimit").Get<RateLimitOptions>() ?? new RateLimitOptions();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    // Lets Swagger UI send the key ("Authorize" button) to the endpoints marked [ApiKey].
+    c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Name = ApiKeyAttribute.HeaderName,
+        Description = "Required for ingestion and document endpoints when Security:ApiKey is set."
+    });
+    c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("ApiKey", document)] = []
+    });
+});
 builder.Services.AddHealthChecks();
 
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: "global",
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 100,
-                Window = TimeSpan.FromSeconds(10),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 200
-            }));
+    options.GlobalLimiter = ClientRateLimiter.Create(rateLimitOptions);
 });
 
 builder.Services.AddHttpClient<WebScraperService>(client =>
@@ -74,6 +84,10 @@ builder.Services.AddSingleton<RagService>();
 builder.Services.AddHostedService<IngestionWorker>();
 
 var app = builder.Build();
+
+if (string.IsNullOrEmpty(app.Services.GetRequiredService<IOptions<SecurityOptions>>().Value.ApiKey))
+    app.Logger.LogWarning(
+        "Security:ApiKey is not set: ingestion and document endpoints are open to anyone who can reach this app.");
 
 if (app.Environment.IsDevelopment())
 {

@@ -1,13 +1,17 @@
 @ChatBotRAGAPI_HostAddress = http://localhost:5170
+# Must match Security:ApiKey when one is set (ingestion and document endpoints only).
+@ApiKey = 
 
 ### Ingest a web page (returns a jobId)
 POST {{ChatBotRAGAPI_HostAddress}}/api/ingestion/scrape
+X-Api-Key: {{ApiKey}}
 Content-Type: application/json
 
 { "url": "https://example.com/" }
 
-### Upload a file (txt/csv/docx/xlsx)
+### Upload a file (txt/csv/docx/xlsx/pdf)
 POST {{ChatBotRAGAPI_HostAddress}}/api/ingestion/upload
+X-Api-Key: {{ApiKey}}
 Content-Type: multipart/form-data; boundary=boundary
 
 --boundary
@@ -19,12 +23,15 @@ Content-Type: text/plain
 
 ### Job status (replace with a jobId from above)
 GET {{ChatBotRAGAPI_HostAddress}}/api/ingestion/00000000-0000-0000-0000-000000000000
+X-Api-Key: {{ApiKey}}
 
 ### List ingested documents
 GET {{ChatBotRAGAPI_HostAddress}}/api/documents
+X-Api-Key: {{ApiKey}}
 
 ### Delete a document and its chunks (source = file name or URL, URL-encoded)
 DELETE {{ChatBotRAGAPI_HostAddress}}/api/documents?source=company_profile.txt
+X-Api-Key: {{ApiKey}}
 
 ### Ask a question
 POST {{ChatBotRAGAPI_HostAddress}}/api/chat/ask

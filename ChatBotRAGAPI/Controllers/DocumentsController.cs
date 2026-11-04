@@ -1,10 +1,12 @@
-using ChatBotRAGAPI.Contracts;
+﻿using ChatBotRAGAPI.Contracts;
+using ChatBotRAGAPI.Security;
 using ChatBotRAGAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ChatBotRAGAPI.Controllers;
 
 [ApiController]
+[ApiKey]
 [Route("api/documents")]
 public sealed class DocumentsController : ControllerBase
 {

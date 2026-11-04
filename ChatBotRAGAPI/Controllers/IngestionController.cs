@@ -1,4 +1,5 @@
 ﻿using ChatBotRAGAPI.Contracts;
+using ChatBotRAGAPI.Security;
 using ChatBotRAGAPI.Services;
 using ChatBotRAGAPI.Settings;
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Options;
 namespace ChatBotRAGAPI.Controllers;
 
 [ApiController]
+[ApiKey]
 [Route("api/ingestion")]
 public sealed class IngestionController : ControllerBase
 {
