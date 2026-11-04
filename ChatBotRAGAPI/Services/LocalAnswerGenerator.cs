@@ -1,5 +1,4 @@
 ﻿using ChatBotRAGAPI.Contracts;
-using System.Text.RegularExpressions;
 
 namespace ChatBotRAGAPI.Services;
 
@@ -7,7 +6,6 @@ namespace ChatBotRAGAPI.Services;
 public sealed class LocalAnswerGenerator : IAnswerGenerator
 {
     private const string NoData = "I don't have enough data.";
-    private static readonly Regex TokenRegex = new("[a-z0-9]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public Task<string> GenerateAnswerAsync(string question, IReadOnlyList<SearchHit> context, CancellationToken ct)
     {
@@ -28,8 +26,7 @@ public sealed class LocalAnswerGenerator : IAnswerGenerator
         return Task.FromResult(answer);
     }
 
-    private static HashSet<string> Tokenize(string text) =>
-        TokenRegex.Matches(text.ToLowerInvariant()).Select(m => m.Value).ToHashSet();
+    private static HashSet<string> Tokenize(string text) => LocalText.Tokenize(text).ToHashSet();
 
     private static int OverlapScore(HashSet<string> a, HashSet<string> b) => a.Count(b.Contains);
 }

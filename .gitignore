@@ -15,3 +15,4 @@ obj/
 
 # Runtime ingestion data (scraped/uploaded content, generated at runtime)
 ChatBotRAGAPI/data/
+TestResults/

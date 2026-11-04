@@ -144,9 +144,8 @@ public sealed class ApiTests : IDisposable
     public async Task Unrelated_question_is_refused_after_ingestion()
     {
         await WaitForJobAsync(await UploadAsync("menu.txt", "The cafeteria serves pasta on Tuesdays and curry on Thursdays."));
-        // No shared words. (Sharing only a stopword like "the" scores ~0.13 with the local hashed embeddings,
-        // above LocalMinScore, so the local fallback cannot refuse such questions yet.)
-        var result = await AskAsync("Who won football championships in 1998?");
+        // Shares only stopwords ("the", "on") with the document; those must not count as a match.
+        var result = await AskAsync("Who won the football championship on the weekend?");
         Assert.Equal(RagService.NoDataAnswer, result.Answer);
     }
 }

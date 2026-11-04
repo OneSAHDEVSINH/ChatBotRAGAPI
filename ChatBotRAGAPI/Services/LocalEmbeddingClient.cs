@@ -1,12 +1,10 @@
 ﻿using ChatBotRAGAPI.Settings;
 using Microsoft.Extensions.Options;
-using System.Text.RegularExpressions;
 
 namespace ChatBotRAGAPI.Services;
 
 public sealed class LocalEmbeddingClient : IEmbeddingClient
 {
-    private static readonly Regex TokenRegex = new("[a-z0-9]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly int _dimensions;
 
     public LocalEmbeddingClient(IOptions<RagOptions> options)
@@ -25,9 +23,8 @@ public sealed class LocalEmbeddingClient : IEmbeddingClient
         if (string.IsNullOrWhiteSpace(text))
             return vec;
 
-        foreach (Match match in TokenRegex.Matches(text))
+        foreach (var token in LocalText.Tokenize(text))
         {
-            var token = match.Value.ToLowerInvariant();
             var idx = StableHash(token) % _dimensions;
             vec[idx] += 1f;
         }

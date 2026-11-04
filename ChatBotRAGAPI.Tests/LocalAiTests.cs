@@ -76,6 +76,14 @@ public class LocalEmbeddingClientTests
         Assert.All(await Client().EmbedAsync("  ", Ct), x => Assert.Equal(0f, x));
 
     [Fact]
+    public async Task Stopwords_are_ignored()
+    {
+        var client = Client();
+        Assert.Equal(await client.EmbedAsync("refund policy", Ct), await client.EmbedAsync("What is the refund policy?", Ct));
+        Assert.All(await client.EmbedAsync("what is the", Ct), x => Assert.Equal(0f, x));
+    }
+
+    [Fact]
     public async Task Batch_matches_single_embeddings()
     {
         var client = Client();
@@ -94,6 +102,11 @@ public class LocalAnswerGeneratorTests
     public async Task No_shared_terms_gives_no_data_answer() =>
         Assert.Equal(RagService.NoDataAnswer,
             await _generator.GenerateAnswerAsync("pricing plans?", [new SearchHit("Unrelated text.", "s", 0.5)], Ct));
+
+    [Fact]
+    public async Task Stopword_only_overlap_gives_no_data_answer() =>
+        Assert.Equal(RagService.NoDataAnswer,
+            await _generator.GenerateAnswerAsync("Who is the best?", [new SearchHit("The office is in Berlin.", "s", 0.5)], Ct));
 
     [Fact]
     public async Task Citation_numbers_follow_retrieval_order_not_answer_order()

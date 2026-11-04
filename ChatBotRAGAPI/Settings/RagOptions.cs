@@ -26,7 +26,7 @@ public sealed class RagOptions
     /// </summary>
     public double MinScore { get; set; } = 0.45;
 
-    /// <summary>MinScore used with UseLocalAiFallback, whose hashed bag-of-words scores are far lower (relevant ~0.1-0.35, noise <= 0.05).</summary>
+    /// <summary>MinScore used with UseLocalAiFallback, whose hashed bag-of-words scores are far lower (relevant ~0.14-0.45; unrelated usually 0, hash collisions up to ~0.15).</summary>
     public double LocalMinScore { get; set; } = 0.08;
 
     public double EffectiveMinScore => UseLocalAiFallback ? LocalMinScore : MinScore;
