@@ -1,6 +1,36 @@
 @ChatBotRAGAPI_HostAddress = http://localhost:5170
 
-GET {{ChatBotRAGAPI_HostAddress}}/weatherforecast/
-Accept: application/json
+### Ingest a web page (returns a jobId)
+POST {{ChatBotRAGAPI_HostAddress}}/api/ingestion/scrape
+Content-Type: application/json
 
-###
+{ "url": "https://example.com/" }
+
+### Upload a file (txt/csv/docx/xlsx)
+POST {{ChatBotRAGAPI_HostAddress}}/api/ingestion/upload
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="company_profile.txt"
+Content-Type: text/plain
+
+< ./testdata/company_profile.txt
+--boundary--
+
+### Job status (replace with a jobId from above)
+GET {{ChatBotRAGAPI_HostAddress}}/api/ingestion/00000000-0000-0000-0000-000000000000
+
+### List ingested documents
+GET {{ChatBotRAGAPI_HostAddress}}/api/documents
+
+### Delete a document and its chunks (source = file name or URL, URL-encoded)
+DELETE {{ChatBotRAGAPI_HostAddress}}/api/documents?source=company_profile.txt
+
+### Ask a question
+POST {{ChatBotRAGAPI_HostAddress}}/api/chat/ask
+Content-Type: application/json
+
+{ "question": "When was the company founded?" }
+
+### Health
+GET {{ChatBotRAGAPI_HostAddress}}/health

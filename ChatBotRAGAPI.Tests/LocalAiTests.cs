@@ -39,6 +39,19 @@ public class InMemoryVectorStoreTests
     }
 
     [Fact]
+    public async Task Delete_removes_points_and_ignores_unknown_ids()
+    {
+        var store = new InMemoryVectorStore();
+        var keep = Guid.NewGuid();
+        var drop = Guid.NewGuid();
+        await store.UpsertAsync([new VectorPoint(keep, [1, 0], "keep", "s"), new VectorPoint(drop, [1, 0], "drop", "s")], Ct);
+
+        await store.DeleteAsync([drop, Guid.NewGuid()], Ct);
+
+        Assert.Equal("keep", Assert.Single(await store.SearchAsync([1, 0], 10, Ct)).Text);
+    }
+
+    [Fact]
     public async Task Zero_vector_scores_zero()
     {
         var store = new InMemoryVectorStore();

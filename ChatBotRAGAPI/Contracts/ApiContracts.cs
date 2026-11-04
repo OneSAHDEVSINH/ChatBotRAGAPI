@@ -15,5 +15,8 @@ public sealed record JobStatusResponse(Guid JobId, string Status, string? Messag
 /// <param name="SourceName">Human-readable origin stored with each chunk: the URL or the original file name.</param>
 public sealed record IngestionJob(Guid JobId, string SourceType, string SourceValue, string SourceName);
 
+/// <param name="Source">The document key: original file name or URL. Re-ingesting the same source replaces it.</param>
+public sealed record DocumentInfo(string Source, string SourceType, int ChunkCount, DateTimeOffset IngestedAt);
+
 public sealed record VectorPoint(Guid Id, float[] Vector, string Text, string Source);
 public sealed record SearchHit(string Text, string Source, double Score);

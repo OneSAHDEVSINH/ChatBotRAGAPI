@@ -9,6 +9,8 @@ public sealed class InMemoryVectorStore : IVectorStore
     private readonly Dictionary<Guid, Entry> _entries = [];
     private readonly object _sync = new();
 
+    public bool IsPersistent => false;
+
     public Task EnsureCollectionAsync(CancellationToken ct) => Task.CompletedTask;
 
     public Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct)
@@ -18,6 +20,16 @@ public sealed class InMemoryVectorStore : IVectorStore
             // Same semantics as Qdrant: an existing id is replaced, not duplicated.
             foreach (var p in points)
                 _entries[p.Id] = new Entry(p.Id, p.Vector, p.Text, p.Source);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct)
+    {
+        lock (_sync)
+        {
+            foreach (var id in ids) _entries.Remove(id);
         }
 
         return Task.CompletedTask;

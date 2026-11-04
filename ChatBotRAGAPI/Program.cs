@@ -1,4 +1,4 @@
-using ChatBotRAGAPI.Services;
+﻿using ChatBotRAGAPI.Services;
 using ChatBotRAGAPI.Settings;
 using System.Threading.RateLimiting;
 
@@ -67,6 +67,7 @@ else
 }
 
 builder.Services.AddSingleton<IngestionQueue>();
+builder.Services.AddSingleton<DocumentRegistry>();
 builder.Services.AddSingleton<FileTextExtractor>();
 builder.Services.AddSingleton<TextChunker>();
 builder.Services.AddSingleton<RagService>();

@@ -14,6 +14,7 @@ public sealed class IngestionWorker : BackgroundService
     private readonly TextChunker _chunker;
     private readonly IEmbeddingClient _embeddingClient;
     private readonly IVectorStore _vectorStore;
+    private readonly DocumentRegistry _registry;
     private readonly RagOptions _options;
     private readonly ILogger<IngestionWorker> _logger;
 
@@ -24,6 +25,7 @@ public sealed class IngestionWorker : BackgroundService
         TextChunker chunker,
         IEmbeddingClient embeddingClient,
         IVectorStore vectorStore,
+        DocumentRegistry registry,
         IOptions<RagOptions> options,
         ILogger<IngestionWorker> logger)
     {
@@ -33,6 +35,7 @@ public sealed class IngestionWorker : BackgroundService
         _chunker = chunker;
         _embeddingClient = embeddingClient;
         _vectorStore = vectorStore;
+        _registry = registry;
         _options = options.Value;
         _logger = logger;
     }
@@ -41,6 +44,7 @@ public sealed class IngestionWorker : BackgroundService
     {
         Directory.CreateDirectory(_options.DataDirectory);
         await EnsureVectorStoreAsync(stoppingToken);
+        if (!_vectorStore.IsPersistent) EnqueueReindex();
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -49,28 +53,12 @@ public sealed class IngestionWorker : BackgroundService
 
             try
             {
-                var text = job.SourceType == "url"
-                    ? await _scraper.ScrapeTextAsync(job.SourceValue, stoppingToken)
-                    : await _extractor.ExtractAsync(job.SourceValue, stoppingToken);
-
-                var rawPath = Path.Combine(_options.DataDirectory, $"{job.JobId}_raw.txt");
-                await File.WriteAllTextAsync(rawPath, text, stoppingToken);
-
-                var chunks = _chunker.Chunk(text, _options.ChunkSize, _options.ChunkOverlap);
-                foreach (var batch in chunks.Chunk(Math.Max(1, _options.EmbeddingBatchSize)))
-                {
-                    var vectors = await _embeddingClient.EmbedBatchAsync(batch, stoppingToken);
-                    var points = batch
-                        .Select((chunk, i) => new VectorPoint(ChunkId(chunk), vectors[i], chunk, job.SourceName))
-                        .ToList();
-                    await _vectorStore.UpsertAsync(points, stoppingToken);
-                }
-
+                await IngestAsync(job, stoppingToken);
                 _queue.MarkCompleted(job.JobId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Ingestion failed for JobId {JobId}", job.JobId);
+                _logger.LogError(ex, "Ingestion failed for JobId {JobId} ({Source})", job.JobId, job.SourceName);
                 _queue.MarkFailed(job.JobId, ex.Message);
             }
             finally
@@ -78,6 +66,71 @@ public sealed class IngestionWorker : BackgroundService
                 if (job.SourceType == "file") DeleteUpload(job.SourceValue);
             }
         }
+    }
+
+    /// <summary>
+    /// Ingests one source as a whole document: its previous version (same SourceName) is replaced,
+    /// including deleting chunks that no longer exist in the new text.
+    /// </summary>
+    private async Task IngestAsync(IngestionJob job, CancellationToken ct)
+    {
+        var text = job.SourceType switch
+        {
+            "url" => await _scraper.ScrapeTextAsync(job.SourceValue, ct),
+            "file" => await _extractor.ExtractAsync(job.SourceValue, ct),
+            ReindexSourceType => await File.ReadAllTextAsync(job.SourceValue, ct),
+            _ => throw new NotSupportedException($"Unknown source type '{job.SourceType}'.")
+        };
+
+        if (job.SourceType != ReindexSourceType)
+            await _registry.SaveTextAsync(job.SourceName, text, ct);
+
+        var chunkIds = new List<Guid>();
+        var chunks = _chunker.Chunk(text, _options.ChunkSize, _options.ChunkOverlap);
+        foreach (var batch in chunks.Chunk(Math.Max(1, _options.EmbeddingBatchSize)))
+        {
+            var vectors = await _embeddingClient.EmbedBatchAsync(batch, ct);
+            var points = batch
+                .Select((chunk, i) => new VectorPoint(ChunkId(job.SourceName, chunk), vectors[i], chunk, job.SourceName))
+                .ToList();
+            await _vectorStore.UpsertAsync(points, ct);
+            chunkIds.AddRange(points.Select(p => p.Id));
+        }
+
+        using (await _registry.LockAsync(ct))
+        {
+            var previous = _registry.Get(job.SourceName);
+            var stale = previous?.ChunkIds.Except(chunkIds).ToList() ?? [];
+            await _vectorStore.DeleteAsync(stale, ct);
+
+            var ids = chunkIds.Distinct().ToList();
+            if (job.SourceType == ReindexSourceType)
+                _registry.Set(job.SourceName, previous?.SourceType ?? "file", ids, previous?.IngestedAt);
+            else
+                _registry.Set(job.SourceName, job.SourceType, ids);
+        }
+    }
+
+    private const string ReindexSourceType = "reindex";
+
+    /// <summary>
+    /// The in-memory store starts empty on every run; rebuild it from the stored document texts.
+    /// These go through the normal queue, so they are visible via job status and retried per document.
+    /// </summary>
+    private void EnqueueReindex()
+    {
+        var documents = _registry.List();
+        foreach (var doc in documents)
+        {
+            var path = _registry.TextPath(doc.Source);
+            if (File.Exists(path))
+                _queue.Enqueue(ReindexSourceType, path, doc.Source);
+            else
+                _logger.LogWarning("Stored text for {Source} is missing; it cannot be re-indexed", doc.Source);
+        }
+
+        if (documents.Count > 0)
+            _logger.LogInformation("Re-indexing {Count} stored document(s)", documents.Count);
     }
 
     /// <summary>
@@ -125,12 +178,13 @@ public sealed class IngestionWorker : BackgroundService
     }
 
     /// <summary>
-    /// Content-derived id so re-ingesting identical text overwrites the existing point
-    /// instead of adding a duplicate (which would crowd out other results in TopK).
+    /// Deterministic id per (source, chunk text): re-ingesting a source overwrites its unchanged chunks
+    /// instead of duplicating them. The source is part of the id so two documents containing the same
+    /// text own separate points, and deleting one can't remove the other's.
     /// </summary>
-    private static Guid ChunkId(string chunk)
+    private static Guid ChunkId(string source, string chunk)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(chunk));
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{source}\0{chunk}"));
         return new Guid(hash.AsSpan(0, 16));
     }
 }

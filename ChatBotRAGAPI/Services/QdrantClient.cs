@@ -19,6 +19,8 @@ public sealed class QdrantClient : IVectorStore
         _httpClient.BaseAddress = new Uri(_options.QdrantBaseUrl);
     }
 
+    public bool IsPersistent => true;
+
     public async Task EnsureCollectionAsync(CancellationToken ct)
     {
         var collectionPath = $"/collections/{_options.QdrantCollection}";
@@ -88,6 +90,20 @@ public sealed class QdrantClient : IVectorStore
 
         using var response = await _httpClient.PutAsync(
             $"/collections/{_options.QdrantCollection}/points?wait=true",
+            new StringContent(body, Encoding.UTF8, "application/json"),
+            ct);
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct)
+    {
+        if (ids.Count == 0) return;
+
+        var body = JsonSerializer.Serialize(new { points = ids.Select(id => id.ToString()) });
+
+        using var response = await _httpClient.PostAsync(
+            $"/collections/{_options.QdrantCollection}/points/delete?wait=true",
             new StringContent(body, Encoding.UTF8, "application/json"),
             ct);
 

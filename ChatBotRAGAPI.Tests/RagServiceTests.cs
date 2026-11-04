@@ -17,6 +17,8 @@ public class RagServiceTests
     private sealed class FakeStore(params SearchHit[] hits) : IVectorStore
     {
         public int? RequestedTopK;
+        public bool IsPersistent => false;
+        public Task DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) => Task.CompletedTask;
         public Task EnsureCollectionAsync(CancellationToken ct) => Task.CompletedTask;
         public Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct) => Task.CompletedTask;
         public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, CancellationToken ct)
