@@ -1,0 +1,85 @@
+{
+  "info": {
+    "name": "ChatBotRAGAPI E2E",
+    "_postman_id": "1c4ce8f2-24ad-4a08-9a5a-8b1301fd8a56",
+    "description": "E2E tests for ingestion and chat",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:7105"
+    },
+    {
+      "key": "jobId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "Ingestion - Scrape URL",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"url\": \"https://example.com\"\n}"
+        },
+        "url": "{{baseUrl}}/api/ingestion/scrape"
+      }
+    },
+    {
+      "name": "Ingestion - Upload File",
+      "request": {
+        "method": "POST",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": ""
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/ingestion/upload"
+      }
+    },
+    {
+      "name": "Ingestion - Job Status",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/ingestion/{{jobId}}"
+      }
+    },
+    {
+      "name": "Chat - Ask",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Summarize what data is available\"\n}"
+        },
+        "url": "{{baseUrl}}/api/chat/ask"
+      }
+    }
+  ]
+}

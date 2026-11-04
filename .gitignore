@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+
+# IDE / tooling
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+.dotnet/
+
+# Logs
+*.log
+
+# Runtime ingestion data (scraped/uploaded content, generated at runtime)
+ChatBotRAGAPI/data/

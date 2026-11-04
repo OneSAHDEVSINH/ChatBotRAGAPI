@@ -1,0 +1,6 @@
+Service,Plan,MonthlyPriceUSD,SLAHours,Includes
+Umbraco Managed Support,Basic,499,48,"Monitoring, Bug fixes"
+Umbraco Managed Support,Pro,999,24,"Monitoring, Bug fixes, Minor enhancements"
+Cloud Cost Optimization,Starter,799,72,"Azure audit, Cost report"
+Cloud Cost Optimization,Enterprise,1899,24,"Azure audit, Cost report, Monthly optimization"
+Custom API Development,Standard,1499,72,"API design, Implementation, Documentation"
