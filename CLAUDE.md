@@ -24,13 +24,13 @@ Manual API testing: `ChatBotRAGAPI/ChatBotRAGAPI.http` and `ChatBotRAGAPI/ChatBo
 
 **Pluggable backends chosen at startup** (`Program.cs`, driven by the `Rag` config section → `Settings/RagOptions.cs`):
 - `Rag:UseInMemoryVectorStore` → `InMemoryVectorStore` (brute-force cosine, process-lifetime only) vs. `QdrantClient` (raw REST against Qdrant).
-- `Rag:UseLocalAiFallback` → `LocalEmbeddingClient` (hashed bag-of-words vectors) + `LocalAnswerGenerator` (returns top overlapping chunks verbatim, no LLM) vs. `OllamaClient`, a single class implementing both `IEmbeddingClient` and `IAnswerGenerator` (`/api/embeddings`, `/api/generate`).
+- `Rag:UseLocalAiFallback` → `LocalEmbeddingClient` (hashed bag-of-words vectors) + `LocalAnswerGenerator` (returns top overlapping chunks verbatim, no LLM) vs. `OllamaClient`, a single class implementing both `IEmbeddingClient` and `IAnswerGenerator` (batched `/api/embed`, `/api/generate`). `Rag:DisableThinking` sends `think: false` — without it, reasoning models such as qwen3 spend `MaxGenerateTokens` on hidden thinking and return empty or truncated answers.
 
 Note the defaults in `RagOptions` differ from `appsettings.json` (e.g. `UseLocalAiFallback` defaults to `true` in code but is `false` in appsettings; `ChunkSize` 100 vs 700), so behavior depends on which config is present. `EmbeddingDimensions` must match the embedding model's output (768 for `nomic-embed-text`) — Qdrant collections are created with this size, and startup fails with an explicit error if an existing collection's size differs.
 
 **Ingestion is asynchronous:**
 1. `IngestionController` (`/api/ingestion/scrape`, `/api/ingestion/upload`) validates input, saves uploads to `{DataDirectory}/inbox/`, and enqueues an `IngestionJob` on `IngestionQueue` (unbounded `Channel` + in-memory status map; finished statuses expire after `JobStatusRetentionMinutes`). Returns 202 with a job id; poll `GET /api/ingestion/{jobId}`.
-2. `IngestionWorker` (hosted `BackgroundService`, processes jobs sequentially) extracts text via `WebScraperService` (AngleSharp, strips nav/script/etc.) or `FileTextExtractor` (OpenXml for docx, ClosedXML for xlsx), writes `{DataDirectory}/{jobId}_raw.txt`, deletes the uploaded file, chunks with `TextChunker` (fixed character windows with overlap), embeds each chunk, and upserts into the vector store. Chunk ids are a SHA-256 of the chunk text, so re-ingesting identical content overwrites rather than duplicates — both stores must keep upsert-by-id semantics.
+2. `IngestionWorker` (hosted `BackgroundService`, processes jobs sequentially) extracts text via `WebScraperService` (AngleSharp, strips nav/script/etc.) or `FileTextExtractor` (OpenXml for docx, ClosedXML for xlsx), writes `{DataDirectory}/{jobId}_raw.txt`, deletes the uploaded file, chunks with `TextChunker`, then embeds and upserts in batches of `EmbeddingBatchSize`. Each chunk is stored with a human-readable `source` (original file name or URL — never the GUID inbox path), which becomes the citation. Chunk ids are a SHA-256 of the chunk text, so re-ingesting identical content overwrites rather than duplicates — both stores must keep upsert-by-id semantics.
 
 `Rag:DataDirectory` is made absolute against the content root in `Program.cs` (`PostConfigure`); always read it from `RagOptions` rather than building paths from `ContentRootPath` or the CWD.
 
@@ -38,7 +38,9 @@ The worker's `ExecuteAsync` must not let exceptions escape — that stops the wh
 
 **SSRF guard:** the scraper's `HttpClient` uses `UrlSafety.CreateHandler()`, whose `ConnectCallback` only connects to public IPs (covers redirects and DNS rebinding; proxies are disabled for it). Don't replace that handler or add a proxy to this client.
 
-**Query path:** `ChatController` → `RagService.AskAsync`: embed question → vector search (`TopK`) → `IAnswerGenerator` with the retrieved chunks → `AskResponse(answer, context)`.
+**Chunking:** `TextChunker` splits recursively on paragraph → line → sentence → word boundaries (hard cut only for a single over-long word), packs pieces up to `ChunkSize` chars, and overlaps with whole trailing pieces or, failing that, trailing words. It depends on extractors preserving structure: `FileTextExtractor` emits one line per docx paragraph / xlsx row, and `WebScraperService` inserts newlines at HTML block boundaries — don't collapse newlines in extractors.
+
+**Query path:** `ChatController` → `RagService.AskAsync`: embed question → vector search (`TopK`) → drop hits below `EffectiveMinScore` (`MinScore` for Ollama, `LocalMinScore` for the local fallback; if none remain, return "I don't have enough data." without calling the generator) → `IAnswerGenerator` with numbered passages → `AskResponse(answer, context, sources)`. Passage *i* is cited as `[i+1]` and matches `sources[i].id`. `MinScore` is embedding-model-specific (0.45 was calibrated for nomic-embed-text: relevant hits scored 0.56–0.75, off-topic ≤0.41); recalibrate when changing `EmbeddingModel`. The local fallback's scores are on a much lower scale, hence the separate `LocalMinScore` (0.08).
 
 **State is not durable in default config:** job statuses and the in-memory vector store are lost on restart, and the raw text files in `data/` are not re-indexed at startup. Use Qdrant for persistence.
 
