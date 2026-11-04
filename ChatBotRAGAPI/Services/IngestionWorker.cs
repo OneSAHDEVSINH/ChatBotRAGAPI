@@ -39,7 +39,7 @@ public sealed class IngestionWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         Directory.CreateDirectory(_options.DataDirectory);
-        await _vectorStore.EnsureCollectionAsync(stoppingToken);
+        await EnsureVectorStoreAsync(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -72,6 +72,34 @@ public sealed class IngestionWorker : BackgroundService
             finally
             {
                 if (job.SourceType == "file") DeleteUpload(job.SourceValue);
+            }
+        }
+    }
+
+    /// <summary>
+    /// An exception escaping ExecuteAsync stops the whole host, so a vector store that is
+    /// unreachable at startup (e.g. Qdrant still booting) is retried with backoff instead.
+    /// Jobs stay queued meanwhile.
+    /// </summary>
+    private async Task EnsureVectorStoreAsync(CancellationToken stoppingToken)
+    {
+        var delay = TimeSpan.FromSeconds(2);
+        while (true)
+        {
+            try
+            {
+                await _vectorStore.EnsureCollectionAsync(stoppingToken);
+                return;
+            }
+            catch (InvalidOperationException)
+            {
+                throw; // configuration error (e.g. vector size mismatch): retrying won't help
+            }
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(ex, "Vector store not ready; retrying in {Delay}", delay);
+                await Task.Delay(delay, stoppingToken);
+                delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 60));
             }
         }
     }
