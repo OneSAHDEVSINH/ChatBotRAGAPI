@@ -70,7 +70,7 @@ public class OllamaClientTests
         var (client, handler) = Create((_, _) => StubHttpHandler.Json("""{"response":"<think>hmm</think> Paris [2]"}"""));
 
         var answer = await client.GenerateAnswerAsync("Capital?",
-            [new SearchHit("Berlin is in Germany.", "de.txt", 0.6), new SearchHit("Paris is in France.", "fr.txt", 0.5)], Ct);
+            [new SearchHit("Berlin is in Germany.", "de.txt", 0.6), new SearchHit("Paris is in France.", "fr.txt", 0.5)], [], Ct);
 
         Assert.Equal("Paris [2]", answer);
         using var json = JsonDocument.Parse(handler.Requests[0].Body!);
@@ -88,9 +88,80 @@ public class OllamaClientTests
         var (client, handler) = Create((_, _) => StubHttpHandler.Json("""{"response":"ok"}"""),
             new RagOptions { OllamaBaseUrl = "http://ollama.test", DisableThinking = false });
 
-        await client.GenerateAnswerAsync("q", [new SearchHit("t", "s", 1)], Ct);
+        await client.GenerateAnswerAsync("q", [new SearchHit("t", "s", 1)], [], Ct);
 
         using var json = JsonDocument.Parse(handler.Requests[0].Body!);
         Assert.False(json.RootElement.TryGetProperty("think", out _));
     }
+
+    [Fact]
+    public async Task History_is_in_the_prompt_without_old_citation_markers()
+    {
+        var (client, handler) = Create((_, _) => StubHttpHandler.Json("""{"response":"ok"}"""));
+
+        await client.GenerateAnswerAsync("and the SLA?", [new SearchHit("t", "s", 1)],
+            [new ChatMessage("user", "Price of Pro?"), new ChatMessage("assistant", "999 USD per month [1][2].")], Ct);
+
+        using var json = JsonDocument.Parse(handler.Requests[0].Body!);
+        var prompt = json.RootElement.GetProperty("prompt").GetString()!;
+        Assert.Contains("User: Price of Pro?\nAssistant: 999 USD per month.\n\nQuestion: and the SLA?", prompt);
+        Assert.True(prompt.IndexOf("Context:") < prompt.IndexOf("Conversation so far"));
+    }
+
+    [Fact]
+    public async Task Streaming_yields_pieces_and_strips_split_think_tags()
+    {
+        const string ndjson = """
+            {"response":"<thi","done":false}
+            {"response":"nk>secret</th","done":false}
+            {"response":"ink>\n Paris","done":false}
+            {"response":" [2]","done":false}
+            {"response":"","done":true}
+            """;
+        var (client, handler) = Create((_, _) => StubHttpHandler.Json(ndjson));
+
+        var pieces = new List<string>();
+        await foreach (var p in client.StreamAnswerAsync("Capital?", [new SearchHit("t", "s", 1)], [], Ct)) pieces.Add(p);
+
+        Assert.Equal("Paris [2]", string.Concat(pieces));
+        Assert.True(pieces.Count >= 2, "expected incremental pieces");
+        using var json = JsonDocument.Parse(handler.Requests[0].Body!);
+        Assert.True(json.RootElement.GetProperty("stream").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Streaming_error_line_throws()
+    {
+        var (client, _) = Create((_, _) => StubHttpHandler.Json("""{"error":"model crashed"}"""));
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(async () =>
+        {
+            await foreach (var _ in client.StreamAnswerAsync("q", [new SearchHit("t", "s", 1)], [], Ct)) { }
+        });
+        Assert.Contains("model crashed", ex.Message);
+    }
+}
+
+public class ThinkTagFilterTests
+{
+    private static string Run(params string[] pieces)
+    {
+        var filter = new ThinkTagFilter();
+        return string.Concat(pieces.Select(filter.Push)) + filter.Flush();
+    }
+
+    [Fact]
+    public void Plain_text_passes_through() => Assert.Equal("Hello world", Run("Hel", "lo ", "world"));
+
+    [Fact]
+    public void Think_block_is_removed_even_when_tags_are_split() =>
+        Assert.Equal("Answer", Run("<", "think", ">reasoning<", "/think>", "  Answer"));
+
+    [Fact]
+    public void Text_that_only_looks_like_a_tag_is_kept() => Assert.Equal("a < b <thin", Run("a < b ", "<thin"));
+
+    [Fact]
+    public void Unclosed_think_block_is_dropped() => Assert.Equal("ok", Run("ok<think>never closed"));
+
+    [Fact]
+    public void Leading_whitespace_is_trimmed() => Assert.Equal("x  y", Run("  ", "\n", "x  y"));
 }

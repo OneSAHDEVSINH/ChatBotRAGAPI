@@ -32,5 +32,23 @@ Content-Type: application/json
 
 { "question": "When was the company founded?" }
 
+### Follow-up question: send earlier turns as history (the server stores no conversation)
+POST {{ChatBotRAGAPI_HostAddress}}/api/chat/ask
+Content-Type: application/json
+
+{
+  "question": "And where is the head office?",
+  "history": [
+    { "role": "user", "content": "When was the company founded?" },
+    { "role": "assistant", "content": "The company was founded in 2016 [1]." }
+  ]
+}
+
+### Streamed answer (Server-Sent Events: sources, delta..., done | error); also accepts history
+POST {{ChatBotRAGAPI_HostAddress}}/api/chat/ask/stream
+Content-Type: application/json
+
+{ "question": "When was the company founded?" }
+
 ### Health
 GET {{ChatBotRAGAPI_HostAddress}}/health

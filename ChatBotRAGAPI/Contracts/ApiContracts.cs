@@ -1,7 +1,19 @@
 ﻿namespace ChatBotRAGAPI.Contracts;
 
 public sealed record ScrapeRequest(string Url);
-public sealed record AskRequest(string Question);
+/// <param name="History">
+/// Earlier turns of this conversation, oldest first (optional). The server keeps no conversation state;
+/// clients send back the previous questions and answers so follow-ups like "and the Pro plan?" make sense.
+/// </param>
+public sealed record AskRequest(string Question, IReadOnlyList<ChatMessage>? History = null);
+
+/// <param name="Role">"user" or "assistant".</param>
+public sealed record ChatMessage(string Role, string Content);
+
+/// <summary>SSE payloads of /api/chat/ask/stream: "sources" (list of ContextSource), then "delta"*, then "done" or "error".</summary>
+public sealed record StreamDelta(string Text);
+public sealed record StreamDone(string Answer);
+public sealed record StreamError(string Message);
 
 /// <param name="Context">Retrieved chunk texts, in rank order (kept for backward compatibility).</param>
 /// <param name="Sources">Where each context chunk came from; <c>Id</c> matches the [n] citations in the answer.</param>

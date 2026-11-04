@@ -114,12 +114,12 @@ public class LocalAnswerGeneratorTests
     [Fact]
     public async Task No_shared_terms_gives_no_data_answer() =>
         Assert.Equal(RagService.NoDataAnswer,
-            await _generator.GenerateAnswerAsync("pricing plans?", [new SearchHit("Unrelated text.", "s", 0.5)], Ct));
+            await _generator.GenerateAnswerAsync("pricing plans?", [new SearchHit("Unrelated text.", "s", 0.5)], [], Ct));
 
     [Fact]
     public async Task Stopword_only_overlap_gives_no_data_answer() =>
         Assert.Equal(RagService.NoDataAnswer,
-            await _generator.GenerateAnswerAsync("Who is the best?", [new SearchHit("The office is in Berlin.", "s", 0.5)], Ct));
+            await _generator.GenerateAnswerAsync("Who is the best?", [new SearchHit("The office is in Berlin.", "s", 0.5)], [], Ct));
 
     [Fact]
     public async Task Citation_numbers_follow_retrieval_order_not_answer_order()
@@ -130,7 +130,7 @@ public class LocalAnswerGeneratorTests
             new("Support hours are 9 to 5 on weekdays for support.", "b.txt", 0.8),
         ];
 
-        var answer = await _generator.GenerateAnswerAsync("What are the support hours?", context, Ct);
+        var answer = await _generator.GenerateAnswerAsync("What are the support hours?", context, [], Ct);
 
         Assert.StartsWith("[2] Support hours", answer);
         Assert.DoesNotContain("[1]", answer);
@@ -140,7 +140,7 @@ public class LocalAnswerGeneratorTests
     public async Task At_most_three_passages_are_returned()
     {
         var context = Enumerable.Range(1, 5).Select(i => new SearchHit($"widget fact {i}", "s", 0.5)).ToList();
-        var answer = await _generator.GenerateAnswerAsync("widget", context, Ct);
+        var answer = await _generator.GenerateAnswerAsync("widget", context, [], Ct);
         Assert.Equal(3, answer.Split("widget fact").Length - 1);
     }
 }

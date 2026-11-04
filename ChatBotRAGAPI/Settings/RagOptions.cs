@@ -33,6 +33,9 @@ public sealed class RagOptions
 
     public int EmbeddingBatchSize { get; set; } = 32;   // chunks per embedding request / vector upsert
 
+    /// <summary>Only the most recent this-many history messages are used (prompt size grows with each turn).</summary>
+    public int MaxHistoryMessages { get; set; } = 6;
+
     /// <summary>Sends think=false to Ollama so reasoning models don't spend MaxGenerateTokens on hidden thinking.</summary>
     public bool DisableThinking { get; set; } = true;
 }

@@ -107,6 +107,72 @@ public sealed class ApiTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest,
             (await _client.PostAsJsonAsync("/api/ingestion/scrape", new ScrapeRequest(url), Ct)).StatusCode);
 
+    [Theory]
+    [InlineData("system")]
+    [InlineData("")]
+    public async Task Ask_rejects_invalid_history_roles(string role)
+    {
+        var request = new AskRequest("q", [new ChatMessage(role, "hi")]);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsJsonAsync("/api/chat/ask", request, Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsJsonAsync("/api/chat/ask/stream", request, Ct)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Follow_up_question_uses_conversation_history()
+    {
+        await WaitForJobAsync(await UploadAsync("warranty.txt", "Warranty: all devices carry a two year limited warranty."));
+
+        // "What about that?" is all stopwords: on its own it matches nothing.
+        Assert.Equal(RagService.NoDataAnswer, (await AskAsync("What about that?")).Answer);
+
+        var response = await _client.PostAsJsonAsync("/api/chat/ask", new AskRequest("What about that?",
+            [new ChatMessage("user", "Tell me about the warranty"), new ChatMessage("assistant", "Which product?")]), Ct);
+        var result = (await response.Content.ReadFromJsonAsync<AskResponse>(Ct))!;
+
+        Assert.Contains("two year", result.Answer);
+        Assert.Equal("warranty.txt", result.Sources[0].Source);
+    }
+
+    [Fact]
+    public async Task Stream_sends_sources_then_deltas_then_done()
+    {
+        await WaitForJobAsync(await UploadAsync("handbook.txt", "Refund policy: a full refund within 30 days of purchase."));
+
+        var events = await StreamAsync(new AskRequest("What is the refund policy?"));
+
+        Assert.Equal("sources", events[0].Event);
+        Assert.Equal("done", events[^1].Event);
+        Assert.All(events[1..^1], e => Assert.Equal("delta", e.Event));
+        Assert.Equal("handbook.txt", events[0].Data[0].GetProperty("source").GetString());
+
+        var streamed = string.Concat(events[1..^1].Select(e => e.Data.GetProperty("text").GetString()));
+        var done = events[^1].Data.GetProperty("answer").GetString();
+        Assert.Equal(done, streamed.Trim());
+        Assert.Contains("30 days", done);
+    }
+
+    [Fact]
+    public async Task Stream_with_nothing_relevant_sends_no_data()
+    {
+        var events = await StreamAsync(new AskRequest("What is the refund policy?"));
+        Assert.Equal(["sources", "delta", "done"], events.Select(e => e.Event));
+        Assert.Equal(0, events[0].Data.GetArrayLength());
+        Assert.Equal(RagService.NoDataAnswer, events[^1].Data.GetProperty("answer").GetString());
+    }
+
+    private async Task<List<(string Event, System.Text.Json.JsonElement Data)>> StreamAsync(AskRequest request)
+    {
+        using var response = await _client.PostAsJsonAsync("/api/chat/ask/stream", request, Ct);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/event-stream", response.Content.Headers.ContentType?.MediaType);
+
+        var events = new List<(string, System.Text.Json.JsonElement)>();
+        await foreach (var item in System.Net.ServerSentEvents.SseParser
+                           .Create(await response.Content.ReadAsStreamAsync(Ct)).EnumerateAsync(Ct))
+            events.Add((item.EventType, System.Text.Json.JsonDocument.Parse(item.Data).RootElement.Clone()));
+        return events;
+    }
+
     [Fact]
     public async Task Upload_rejects_unsupported_types()
     {
