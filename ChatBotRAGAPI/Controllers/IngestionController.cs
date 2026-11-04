@@ -29,7 +29,7 @@ public sealed class IngestionController : ControllerBase
         if (System.Net.IPAddress.TryParse(uri.Host.Trim('[', ']'), out var ip) && !UrlSafety.IsPublicAddress(ip))
             return BadRequest("URLs pointing to private, loopback or link-local addresses are not allowed.");
 
-        var jobId = _queue.Enqueue("url", request.Url);
+        var jobId = _queue.Enqueue("url", request.Url, uri.ToString());
         return Accepted(new EnqueueResponse(jobId, "Queued"));
     }
 
@@ -60,7 +60,8 @@ public sealed class IngestionController : ControllerBase
             await stream.FlushAsync(ct);
         } // fully closed here
 
-        var jobId = _queue.Enqueue("file", savedPath);
+        // The saved name is a GUID; keep the client's file name (sans any path) for citations.
+        var jobId = _queue.Enqueue("file", savedPath, Path.GetFileName(file.FileName));
         return Accepted(new EnqueueResponse(jobId, "Queued"));
     }
 

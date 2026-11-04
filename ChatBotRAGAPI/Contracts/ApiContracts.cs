@@ -2,10 +2,18 @@
 
 public sealed record ScrapeRequest(string Url);
 public sealed record AskRequest(string Question);
-public sealed record AskResponse(string Answer, IReadOnlyList<string> Context);
+
+/// <param name="Context">Retrieved chunk texts, in rank order (kept for backward compatibility).</param>
+/// <param name="Sources">Where each context chunk came from; <c>Id</c> matches the [n] citations in the answer.</param>
+public sealed record AskResponse(string Answer, IReadOnlyList<string> Context, IReadOnlyList<ContextSource> Sources);
+public sealed record ContextSource(int Id, string Source, double Score);
+
 public sealed record EnqueueResponse(Guid JobId, string Status);
 public sealed record JobStatusResponse(Guid JobId, string Status, string? Message);
 
-public sealed record IngestionJob(Guid JobId, string SourceType, string SourceValue);
+/// <param name="SourceValue">What the worker reads: a URL, or the saved upload path.</param>
+/// <param name="SourceName">Human-readable origin stored with each chunk: the URL or the original file name.</param>
+public sealed record IngestionJob(Guid JobId, string SourceType, string SourceValue, string SourceName);
 
-public sealed record SearchHit(string Text, double Score);
+public sealed record VectorPoint(Guid Id, float[] Vector, string Text, string Source);
+public sealed record SearchHit(string Text, string Source, double Score);

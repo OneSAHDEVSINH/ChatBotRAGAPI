@@ -24,11 +24,11 @@ public sealed class IngestionQueue
         _time = time ?? TimeProvider.System;
     }
 
-    public Guid Enqueue(string sourceType, string sourceValue)
+    public Guid Enqueue(string sourceType, string sourceValue, string sourceName)
     {
         PruneExpired();
 
-        var job = new IngestionJob(Guid.NewGuid(), sourceType, sourceValue);
+        var job = new IngestionJob(Guid.NewGuid(), sourceType, sourceValue, sourceName);
         Set(job.JobId, "Queued");
         _channel.Writer.TryWrite(job);
         return job.JobId;

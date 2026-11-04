@@ -23,14 +23,25 @@ public sealed class RagService
         _options = options.Value;
     }
 
+    public const string NoDataAnswer = "I don't have enough data.";
+
     public async Task<AskResponse> AskAsync(string question, CancellationToken ct)
     {
         var qvec = await _embeddingClient.EmbedAsync(question, ct);
         var hits = await _vectorStore.SearchAsync(qvec, _options.TopK, ct);
 
-        var context = hits.Select(h => h.Text).ToArray();
-        var answer = await _answerGenerator.GenerateAnswerAsync(question, context, ct);
+        // Weak matches mislead the generator more than they help; drop them. If nothing clears the bar,
+        // answer directly instead of paying for an LLM call that can only hallucinate.
+        var minScore = _options.EffectiveMinScore;
+        var relevant = hits.Where(h => h.Score >= minScore).ToList();
+        if (relevant.Count == 0)
+            return new AskResponse(NoDataAnswer, [], []);
 
-        return new AskResponse(answer, context);
+        var answer = await _answerGenerator.GenerateAnswerAsync(question, relevant, ct);
+
+        return new AskResponse(
+            answer,
+            relevant.Select(h => h.Text).ToList(),
+            relevant.Select((h, i) => new ContextSource(i + 1, h.Source, Math.Round(h.Score, 4))).ToList());
     }
 }

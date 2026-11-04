@@ -72,19 +72,18 @@ public sealed class QdrantClient : IVectorStore
         }
     }
 
-    public async Task UpsertAsync(Guid id, float[] vector, string text, string source, CancellationToken ct)
+    public async Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct)
     {
+        if (points.Count == 0) return;
+
         var body = JsonSerializer.Serialize(new
         {
-            points = new[]
+            points = points.Select(p => new
             {
-                new
-                {
-                    id = id.ToString(),
-                    vector,
-                    payload = new { text, source }
-                }
-            }
+                id = p.Id.ToString(),
+                vector = p.Vector,
+                payload = new { text = p.Text, source = p.Source }
+            })
         });
 
         using var response = await _httpClient.PutAsync(
@@ -113,8 +112,10 @@ public sealed class QdrantClient : IVectorStore
         foreach (var item in doc.RootElement.GetProperty("result").EnumerateArray())
         {
             var score = item.GetProperty("score").GetDouble();
-            var text = item.GetProperty("payload").GetProperty("text").GetString() ?? string.Empty;
-            hits.Add(new SearchHit(text, score));
+            var payload = item.GetProperty("payload");
+            var text = payload.GetProperty("text").GetString() ?? string.Empty;
+            var source = payload.TryGetProperty("source", out var s) ? s.GetString() ?? string.Empty : string.Empty;
+            hits.Add(new SearchHit(text, source, score));
         }
 
         return hits;

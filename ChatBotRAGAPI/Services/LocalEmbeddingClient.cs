@@ -14,11 +14,16 @@ public sealed class LocalEmbeddingClient : IEmbeddingClient
         _dimensions = Math.Max(64, options.Value.EmbeddingDimensions);
     }
 
-    public Task<float[]> EmbedAsync(string text, CancellationToken ct)
+    public Task<float[]> EmbedAsync(string text, CancellationToken ct) => Task.FromResult(Embed(text));
+
+    public Task<IReadOnlyList<float[]>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<float[]>>(texts.Select(Embed).ToList());
+
+    private float[] Embed(string text)
     {
         var vec = new float[_dimensions];
         if (string.IsNullOrWhiteSpace(text))
-            return Task.FromResult(vec);
+            return vec;
 
         foreach (Match match in TokenRegex.Matches(text))
         {
@@ -28,7 +33,7 @@ public sealed class LocalEmbeddingClient : IEmbeddingClient
         }
 
         Normalize(vec);
-        return Task.FromResult(vec);
+        return vec;
     }
 
     private static int StableHash(string s)

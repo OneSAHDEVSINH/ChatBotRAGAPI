@@ -11,12 +11,13 @@ public sealed class InMemoryVectorStore : IVectorStore
 
     public Task EnsureCollectionAsync(CancellationToken ct) => Task.CompletedTask;
 
-    public Task UpsertAsync(Guid id, float[] vector, string text, string source, CancellationToken ct)
+    public Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct)
     {
         lock (_sync)
         {
             // Same semantics as Qdrant: an existing id is replaced, not duplicated.
-            _entries[id] = new Entry(id, vector, text, source);
+            foreach (var p in points)
+                _entries[p.Id] = new Entry(p.Id, p.Vector, p.Text, p.Source);
         }
 
         return Task.CompletedTask;
@@ -28,7 +29,7 @@ public sealed class InMemoryVectorStore : IVectorStore
         lock (_sync)
         {
             result = _entries.Values
-                .Select(e => new SearchHit(e.Text, Cosine(vector, e.Vector)))
+                .Select(e => new SearchHit(e.Text, e.Source, Cosine(vector, e.Vector)))
                 .OrderByDescending(x => x.Score)
                 .Take(topK)
                 .ToList();

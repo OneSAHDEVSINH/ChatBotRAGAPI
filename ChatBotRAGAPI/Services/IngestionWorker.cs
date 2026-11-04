@@ -1,4 +1,5 @@
-﻿using ChatBotRAGAPI.Settings;
+﻿using ChatBotRAGAPI.Contracts;
+using ChatBotRAGAPI.Settings;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
@@ -56,10 +57,13 @@ public sealed class IngestionWorker : BackgroundService
                 await File.WriteAllTextAsync(rawPath, text, stoppingToken);
 
                 var chunks = _chunker.Chunk(text, _options.ChunkSize, _options.ChunkOverlap);
-                foreach (var chunk in chunks)
+                foreach (var batch in chunks.Chunk(Math.Max(1, _options.EmbeddingBatchSize)))
                 {
-                    var vec = await _embeddingClient.EmbedAsync(chunk, stoppingToken);
-                    await _vectorStore.UpsertAsync(ChunkId(chunk), vec, chunk, job.SourceValue, stoppingToken);
+                    var vectors = await _embeddingClient.EmbedBatchAsync(batch, stoppingToken);
+                    var points = batch
+                        .Select((chunk, i) => new VectorPoint(ChunkId(chunk), vectors[i], chunk, job.SourceName))
+                        .ToList();
+                    await _vectorStore.UpsertAsync(points, stoppingToken);
                 }
 
                 _queue.MarkCompleted(job.JobId);
