@@ -16,3 +16,7 @@ obj/
 # Runtime ingestion data (scraped/uploaded content, generated at runtime)
 ChatBotRAGAPI/data/
 TestResults/
+
+# Impeccable design-hook caches (config.json is shared and committed)
+.impeccable/hook.cache.json
+.impeccable/hook.pending.json

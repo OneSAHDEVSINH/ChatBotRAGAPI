@@ -1,0 +1,35 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "geist",
+        "files": [
+          "docs/architecture.html"
+        ],
+        "createdAt": "2026-11-05T12:28:06.773Z",
+        "reason": "diagram-design skill default skin (Geist/Geist Mono/Instrument Serif); user chose 'Keep default' style for this diagram"
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist mono",
+        "files": [
+          "docs/architecture.html"
+        ],
+        "createdAt": "2026-11-05T12:28:06.974Z",
+        "reason": "diagram-design skill default skin (Geist/Geist Mono/Instrument Serif); user chose 'Keep default' style for this diagram"
+      },
+      {
+        "rule": "overused-font",
+        "value": "instrument serif",
+        "files": [
+          "docs/architecture.html"
+        ],
+        "createdAt": "2026-11-05T12:28:07.152Z",
+        "reason": "diagram-design skill default skin (Geist/Geist Mono/Instrument Serif); user chose 'Keep default' style for this diagram"
+      }
+    ]
+  }
+}
