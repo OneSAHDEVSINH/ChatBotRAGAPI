@@ -9,7 +9,8 @@ namespace ChatBotRAGAPI.Services;
 
 /// <summary>
 /// Durable list of ingested documents, keyed by source (file name or URL), stored under
-/// <c>{DataDirectory}/documents/</c>: <c>index.json</c> plus each document's extracted text in <c>{docId}.txt</c>.
+/// <c>{DataDirectory}/documents/</c>: <c>index.json</c> plus each document's extracted text in <c>{docId}.txt</c>
+/// and its chunk embeddings in <c>{docId}.vec</c>.
 /// It knows which vector points belong to which source, so a document can be replaced or deleted
 /// without leaving stale chunks, and it is what the worker re-indexes from when the vector store is not persistent.
 /// </summary>
@@ -73,6 +74,9 @@ public sealed class DocumentRegistry
 
     public string TextPath(string source) => Path.Combine(_directory, $"{DocId(source)}.txt");
 
+    /// <summary>The document's cached chunk embeddings (<see cref="VectorFile"/>).</summary>
+    public string VectorsPath(string source) => Path.Combine(_directory, $"{DocId(source)}.vec");
+
     public Task SaveTextAsync(string source, string text, CancellationToken ct) =>
         File.WriteAllTextAsync(TextPath(source), text, ct);
 
@@ -95,6 +99,7 @@ public sealed class DocumentRegistry
         }
 
         File.Delete(TextPath(source));
+        File.Delete(VectorsPath(source));
         return true;
     }
 

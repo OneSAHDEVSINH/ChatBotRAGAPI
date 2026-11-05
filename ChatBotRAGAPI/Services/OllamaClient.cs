@@ -20,6 +20,8 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator
         _httpClient.BaseAddress = new Uri(_options.OllamaBaseUrl);
     }
 
+    public string ModelId => $"ollama:{_options.EmbeddingModel}:{_options.EmbeddingDimensions}";
+
     public async Task<float[]> EmbedAsync(string text, CancellationToken ct) =>
         (await EmbedBatchAsync([text], ct))[0];
 

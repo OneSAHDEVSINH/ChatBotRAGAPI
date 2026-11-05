@@ -12,6 +12,8 @@ public sealed class LocalEmbeddingClient : IEmbeddingClient
         _dimensions = Math.Max(64, options.Value.EmbeddingDimensions);
     }
 
+    public string ModelId => $"local-hash:{_dimensions}";
+
     public Task<float[]> EmbedAsync(string text, CancellationToken ct) => Task.FromResult(Embed(text));
 
     public Task<IReadOnlyList<float[]>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken ct) =>

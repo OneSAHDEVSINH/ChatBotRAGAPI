@@ -109,20 +109,40 @@ public sealed class IngestionWorker : BackgroundService
         if (saveText)
             await _registry.SaveTextAsync(source, text, ct);
 
+        // Chunks whose text is unchanged keep their id, so their vectors come from the cache instead of the model.
+        var modelId = _embeddingClient.ModelId;
+        var cached = VectorFile.Read(_registry.VectorsPath(source), modelId, _logger);
+        var vectorsById = new Dictionary<Guid, float[]>();
+        var embedded = 0;
+
         var chunkIds = new List<Guid>();
         var chunks = _chunker.Chunk(text, _options.ChunkSize, _options.ChunkOverlap);
         foreach (var batch in chunks.Chunk(Math.Max(1, _options.EmbeddingBatchSize)))
         {
-            var vectors = await _embeddingClient.EmbedBatchAsync(batch, ct);
-            var points = batch
-                .Select((chunk, i) => new VectorPoint(ChunkId(source, chunk), vectors[i], chunk, source))
-                .ToList();
+            var ids = batch.Select(chunk => ChunkId(source, chunk)).ToList();
+            var missing = Enumerable.Range(0, batch.Length).Where(i => !cached.ContainsKey(ids[i])).ToList();
+            if (missing.Count > 0)
+            {
+                var fresh = await _embeddingClient.EmbedBatchAsync(missing.Select(i => batch[i]).ToList(), ct);
+                for (var k = 0; k < missing.Count; k++) cached[ids[missing[k]]] = fresh[k];
+                embedded += missing.Count;
+            }
+
+            var points = batch.Select((chunk, i) => new VectorPoint(ids[i], cached[ids[i]], chunk, source)).ToList();
             await _vectorStore.UpsertAsync(points, ct);
-            chunkIds.AddRange(points.Select(p => p.Id));
+            chunkIds.AddRange(ids);
+            foreach (var p in points) vectorsById[p.Id] = p.Vector;
         }
+
+        if (chunks.Count > 0)
+            _logger.LogInformation("{Source}: {Chunks} chunk(s), {Embedded} embedded, {Reused} from cache",
+                source, chunks.Count, embedded, chunks.Count - embedded);
 
         using (await _registry.LockAsync(ct))
         {
+            // Only the current chunks are kept, so the cache never grows with old versions of the text.
+            VectorFile.Write(_registry.VectorsPath(source), modelId, vectorsById);
+
             var previous = _registry.Get(source);
             var stale = previous?.ChunkIds.Except(chunkIds).ToList() ?? [];
             await _vectorStore.DeleteAsync(stale, ct);

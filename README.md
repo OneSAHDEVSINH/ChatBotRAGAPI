@@ -7,7 +7,7 @@ then ask questions that are answered **only** from that content, with numbered c
 - **Hybrid search**: vector similarity fused with BM25 keyword search, plus a relevance threshold so off-topic questions get *"I don't have enough data."* instead of a hallucination
 - **Cited answers**: `[1]`, `[2]` in the answer match `sources[].id`
 - **Streaming** answers over Server-Sent Events, and **follow-up questions** via conversation history
-- **Documents** are tracked by source: re-ingesting replaces, deleting removes every chunk, and the index survives restarts
+- **Documents** are tracked by source: re-ingesting replaces, deleting removes every chunk, and the index survives restarts; embeddings are cached on disk, so restarts and unchanged re-ingests don't re-embed
 - **Chat UI** at `/`: streaming answers, clickable citations that show the passage, follow-up questions
 - Runs fully local with [Ollama](https://ollama.com); a no-LLM fallback mode needs nothing else at all
 
@@ -121,6 +121,8 @@ All under `Rag` in `ChatBotRAGAPI/appsettings.json` (override with env vars such
 | `MaxCrawlPages` / `CrawlDelayMilliseconds` | 50 / 500 | Largest allowed `maxPages`; pause between crawled pages |
 
 Changing the chunking settings or the embedding model means re-ingesting (or restarting, for the in-memory store).
+Embeddings are cached per document in `data/documents/*.vec`, so only chunks whose text changed are embedded again; a
+different embedding model ignores the cache and re-embeds everything.
 
 ## Development
 
