@@ -9,6 +9,13 @@ Content-Type: application/json
 
 { "url": "https://example.com/" }
 
+### Crawl a site from a page: same host and path, robots.txt honoured, each page its own document (max Rag:MaxCrawlPages)
+POST {{ChatBotRAGAPI_HostAddress}}/api/ingestion/scrape
+X-Api-Key: {{ApiKey}}
+Content-Type: application/json
+
+{ "url": "https://example.com/", "maxPages": 20 }
+
 ### Upload a file (txt/csv/docx/xlsx/pdf)
 POST {{ChatBotRAGAPI_HostAddress}}/api/ingestion/upload
 X-Api-Key: {{ApiKey}}

@@ -1,6 +1,7 @@
 ﻿using ChatBotRAGAPI.Security;
 using ChatBotRAGAPI.Services;
 using ChatBotRAGAPI.Settings;
+using ChatBotRAGAPI.Swagger;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 
@@ -14,11 +15,18 @@ var ragOptions = builder.Configuration.GetSection("Rag").Get<RagOptions>() ?? ne
 
 builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection("Security"));
 var rateLimitOptions = builder.Configuration.GetSection("RateLimit").Get<RateLimitOptions>() ?? new RateLimitOptions();
+var proxyOptions = builder.Configuration.GetSection("ForwardedHeaders").Get<ProxyOptions>() ?? new ProxyOptions();
+if (proxyOptions.Enabled)
+    builder.Services.Configure<ForwardedHeadersOptions>(o => ProxySetup.Configure(o, proxyOptions));
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
+    // Endpoint summaries and field descriptions come from the XML doc comments.
+    c.IncludeXmlComments(typeof(Program).Assembly, includeControllerXmlComments: true);
+    c.OperationFilter<RequestExamplesFilter>();
+
     // Lets Swagger UI send the key ("Authorize" button) to the endpoints marked [ApiKey].
     c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
     {
@@ -86,6 +94,7 @@ else
     builder.Services.AddSingleton<IAnswerGenerator>(sp => sp.GetRequiredService<OllamaClient>());
 }
 
+builder.Services.AddTransient<WebCrawler>();
 builder.Services.AddSingleton<IngestionQueue>();
 builder.Services.AddSingleton<DocumentRegistry>();
 builder.Services.AddSingleton<FileTextExtractor>();
@@ -98,6 +107,10 @@ var app = builder.Build();
 if (string.IsNullOrEmpty(app.Services.GetRequiredService<IOptions<SecurityOptions>>().Value.ApiKey))
     app.Logger.LogWarning(
         "Security:ApiKey is not set: ingestion and document endpoints are open to anyone who can reach this app.");
+
+// First, so the rate limiter and everything else see the real client address and scheme.
+if (proxyOptions.Enabled)
+    app.UseForwardedHeaders();
 
 if (app.Environment.IsDevelopment())
 {

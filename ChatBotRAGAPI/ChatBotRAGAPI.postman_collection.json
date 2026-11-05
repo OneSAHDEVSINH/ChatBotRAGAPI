@@ -122,6 +122,51 @@
           ]
         },
         {
+          "name": "Crawl site",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ingestion/scrape",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ingestion",
+                "scrape"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/\",\n  \"maxPages\": 20\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Follows links on the same host and under the same path, honouring robots.txt, up to maxPages (max Rag:MaxCrawlPages, default 50). Each page becomes its own document named by its URL; the job message reports how many pages were ingested."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+                  "pm.collectionVariables.set('jobId', pm.response.json().jobId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Upload file",
           "request": {
             "method": "POST",

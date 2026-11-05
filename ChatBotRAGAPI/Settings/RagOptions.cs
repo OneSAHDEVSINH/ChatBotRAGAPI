@@ -22,7 +22,7 @@ public sealed class RagOptions
     /// <summary>
     /// Hits scoring below this cosine similarity are not passed to the answer generator; 0 disables the filter.
     /// Scores are not comparable across embedding models, so recalibrate when changing EmbeddingModel.
-    /// 0.45 suits nomic-embed-text (relevant hits ~0.56-0.75, off-topic questions <= 0.41).
+    /// 0.45 suits nomic-embed-text (relevant hits ~0.56-0.75, off-topic questions at most 0.41).
     /// </summary>
     public double MinScore { get; set; } = 0.45;
 
@@ -47,6 +47,12 @@ public sealed class RagOptions
     public int SearchCandidates { get; set; } = 20;
 
     public int EmbeddingBatchSize { get; set; } = 32;   // chunks per embedding request / vector upsert
+
+    /// <summary>Largest maxPages a scrape request may ask for (crawling a site from the given page).</summary>
+    public int MaxCrawlPages { get; set; } = 50;
+
+    /// <summary>Pause between page requests while crawling, so a crawl doesn't hammer the site.</summary>
+    public int CrawlDelayMilliseconds { get; set; } = 500;
 
     /// <summary>Retries of transient Ollama/Qdrant failures (connection refused, 5xx, 408, 429); 0 disables.</summary>
     public int HttpRetryAttempts { get; set; } = 2;

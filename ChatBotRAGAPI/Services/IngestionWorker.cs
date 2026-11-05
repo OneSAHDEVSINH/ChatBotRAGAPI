@@ -9,7 +9,7 @@ namespace ChatBotRAGAPI.Services;
 public sealed class IngestionWorker : BackgroundService
 {
     private readonly IngestionQueue _queue;
-    private readonly WebScraperService _scraper;
+    private readonly WebCrawler _crawler;
     private readonly FileTextExtractor _extractor;
     private readonly TextChunker _chunker;
     private readonly IEmbeddingClient _embeddingClient;
@@ -21,7 +21,7 @@ public sealed class IngestionWorker : BackgroundService
 
     public IngestionWorker(
         IngestionQueue queue,
-        WebScraperService scraper,
+        WebCrawler crawler,
         FileTextExtractor extractor,
         TextChunker chunker,
         IEmbeddingClient embeddingClient,
@@ -32,7 +32,7 @@ public sealed class IngestionWorker : BackgroundService
         ILogger<IngestionWorker> logger)
     {
         _queue = queue;
-        _scraper = scraper;
+        _crawler = crawler;
         _extractor = extractor;
         _chunker = chunker;
         _embeddingClient = embeddingClient;
@@ -57,8 +57,8 @@ public sealed class IngestionWorker : BackgroundService
 
             try
             {
-                await IngestAsync(job, stoppingToken);
-                _queue.MarkCompleted(job.JobId);
+                var summary = await IngestAsync(job, stoppingToken);
+                _queue.MarkCompleted(job.JobId, summary);
             }
             catch (Exception ex)
             {
@@ -72,22 +72,42 @@ public sealed class IngestionWorker : BackgroundService
         }
     }
 
+    /// <summary>Runs one job; returns a summary for the job status (crawls only), or null.</summary>
+    private async Task<string?> IngestAsync(IngestionJob job, CancellationToken ct)
+    {
+        switch (job.SourceType)
+        {
+            case "url":
+                var pages = 0;
+                var result = await _crawler.CrawlAsync(new Uri(job.SourceValue), job.SourceName, job.MaxPages,
+                    async (source, page, token) =>
+                    {
+                        await StoreDocumentAsync(source, "url", page.Text, saveText: true, token);
+                        if (job.MaxPages > 1) _queue.MarkRunning(job.JobId, $"Crawling: {++pages} page(s) ingested so far.");
+                    }, ct);
+                return job.MaxPages > 1 ? result.ToString() : null;
+
+            case "file":
+                await StoreDocumentAsync(job.SourceName, "file", await _extractor.ExtractAsync(job.SourceValue, ct), saveText: true, ct);
+                return null;
+
+            case ReindexSourceType:
+                await StoreDocumentAsync(job.SourceName, ReindexSourceType, await File.ReadAllTextAsync(job.SourceValue, ct), saveText: false, ct);
+                return null;
+
+            default:
+                throw new NotSupportedException($"Unknown source type '{job.SourceType}'.");
+        }
+    }
+
     /// <summary>
-    /// Ingests one source as a whole document: its previous version (same SourceName) is replaced,
+    /// Stores one source as a whole document: its previous version (same source name) is replaced,
     /// including deleting chunks that no longer exist in the new text.
     /// </summary>
-    private async Task IngestAsync(IngestionJob job, CancellationToken ct)
+    private async Task StoreDocumentAsync(string source, string sourceType, string text, bool saveText, CancellationToken ct)
     {
-        var text = job.SourceType switch
-        {
-            "url" => await _scraper.ScrapeTextAsync(job.SourceValue, ct),
-            "file" => await _extractor.ExtractAsync(job.SourceValue, ct),
-            ReindexSourceType => await File.ReadAllTextAsync(job.SourceValue, ct),
-            _ => throw new NotSupportedException($"Unknown source type '{job.SourceType}'.")
-        };
-
-        if (job.SourceType != ReindexSourceType)
-            await _registry.SaveTextAsync(job.SourceName, text, ct);
+        if (saveText)
+            await _registry.SaveTextAsync(source, text, ct);
 
         var chunkIds = new List<Guid>();
         var chunks = _chunker.Chunk(text, _options.ChunkSize, _options.ChunkOverlap);
@@ -95,7 +115,7 @@ public sealed class IngestionWorker : BackgroundService
         {
             var vectors = await _embeddingClient.EmbedBatchAsync(batch, ct);
             var points = batch
-                .Select((chunk, i) => new VectorPoint(ChunkId(job.SourceName, chunk), vectors[i], chunk, job.SourceName))
+                .Select((chunk, i) => new VectorPoint(ChunkId(source, chunk), vectors[i], chunk, source))
                 .ToList();
             await _vectorStore.UpsertAsync(points, ct);
             chunkIds.AddRange(points.Select(p => p.Id));
@@ -103,15 +123,15 @@ public sealed class IngestionWorker : BackgroundService
 
         using (await _registry.LockAsync(ct))
         {
-            var previous = _registry.Get(job.SourceName);
+            var previous = _registry.Get(source);
             var stale = previous?.ChunkIds.Except(chunkIds).ToList() ?? [];
             await _vectorStore.DeleteAsync(stale, ct);
 
             var ids = chunkIds.Distinct().ToList();
-            if (job.SourceType == ReindexSourceType)
-                _registry.Set(job.SourceName, previous?.SourceType ?? "file", ids, previous?.IngestedAt);
+            if (sourceType == ReindexSourceType)
+                _registry.Set(source, previous?.SourceType ?? "file", ids, previous?.IngestedAt);
             else
-                _registry.Set(job.SourceName, job.SourceType, ids);
+                _registry.Set(source, sourceType, ids);
         }
     }
 

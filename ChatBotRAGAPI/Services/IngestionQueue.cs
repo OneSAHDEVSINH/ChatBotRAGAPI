@@ -24,11 +24,11 @@ public sealed class IngestionQueue
         _time = time ?? TimeProvider.System;
     }
 
-    public Guid Enqueue(string sourceType, string sourceValue, string sourceName)
+    public Guid Enqueue(string sourceType, string sourceValue, string sourceName, int maxPages = 1)
     {
         PruneExpired();
 
-        var job = new IngestionJob(Guid.NewGuid(), sourceType, sourceValue, sourceName);
+        var job = new IngestionJob(Guid.NewGuid(), sourceType, sourceValue, sourceName, maxPages);
         Set(job.JobId, "Queued");
         _channel.Writer.TryWrite(job);
         return job.JobId;
@@ -37,8 +37,8 @@ public sealed class IngestionQueue
     public ValueTask<IngestionJob> DequeueAsync(CancellationToken cancellationToken) =>
         _channel.Reader.ReadAsync(cancellationToken);
 
-    public void MarkRunning(Guid jobId) => Set(jobId, "Running");
-    public void MarkCompleted(Guid jobId) => Set(jobId, "Completed");
+    public void MarkRunning(Guid jobId, string? progress = null) => Set(jobId, "Running", progress);
+    public void MarkCompleted(Guid jobId, string? summary = null) => Set(jobId, "Completed", summary);
     public void MarkFailed(Guid jobId, string message) => Set(jobId, "Failed", message);
 
     public (string Status, string? Message) GetStatus(Guid jobId) =>
