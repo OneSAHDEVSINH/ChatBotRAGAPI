@@ -9,6 +9,15 @@ public sealed class RagOptions
     public string QdrantCollection { get; set; } = "knowledge";
     public string EmbeddingModel { get; set; } = "text-embedding-nomic:latest";
     public string ChatModel { get; set; } = "gpt-5-qwen3:latest";
+
+    /// <summary>
+    /// Ollama vision model that reads scanned PDF pages (pages with no text layer), e.g. "qwen2.5vl:3b" or
+    /// "granite3.2-vision". Empty = OCR off: a PDF with no text layer fails with an explanation.
+    /// </summary>
+    public string OcrModel { get; set; } = "";
+
+    /// <summary>Token budget for one page's transcription (a dense page is ~600-1000 tokens).</summary>
+    public int OcrMaxTokens { get; set; } = 2048;
     public string OllamaBaseUrl { get; set; } = "http://127.0.0.1:11434";
     public int ChunkSize { get; set; } = 700;
     public int ChunkOverlap { get; set; } = 80;

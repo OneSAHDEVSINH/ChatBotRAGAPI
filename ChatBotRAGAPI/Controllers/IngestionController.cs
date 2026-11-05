@@ -57,7 +57,7 @@ public sealed class IngestionController : ControllerBase
     /// <summary>Uploads a .txt, .csv, .docx, .xlsx or .pdf file (up to 50 MB) for ingestion.</summary>
     /// <remarks>
     /// Runs in the background: poll GET /api/ingestion/{jobId} until Completed. The document is named by the
-    /// file name, so uploading a file with the same name again replaces it. Scanned (image-only) PDFs fail.
+    /// file name, so uploading a file with the same name again replaces it. Scanned PDFs need Rag:OcrModel.
     /// </remarks>
     /// <param name="file">The file (multipart form field "file").</param>
     /// <param name="ct">Request cancellation.</param>

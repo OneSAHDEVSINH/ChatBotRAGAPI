@@ -66,7 +66,7 @@ public sealed class PdfExtractionTests : IDisposable
     {
         var path = await WriteAsync(TestPdf.Create([], []));
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _extractor.ExtractAsync(path, Ct));
-        Assert.Contains("OCR is not supported", ex.Message);
+        Assert.Contains("OCR is off", ex.Message);
     }
 
     [Fact]

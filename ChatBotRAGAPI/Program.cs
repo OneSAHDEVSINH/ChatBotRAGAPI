@@ -92,6 +92,10 @@ else
 
     builder.Services.AddSingleton<IEmbeddingClient>(sp => sp.GetRequiredService<OllamaClient>());
     builder.Services.AddSingleton<IAnswerGenerator>(sp => sp.GetRequiredService<OllamaClient>());
+
+    // OCR for scanned PDF pages, only when a vision model is configured.
+    if (!string.IsNullOrWhiteSpace(ragOptions.OcrModel))
+        builder.Services.AddSingleton<IImageTextReader>(sp => sp.GetRequiredService<OllamaClient>());
 }
 
 builder.Services.AddTransient<WebCrawler>();

@@ -120,6 +120,7 @@ All under `Rag` in `ChatBotRAGAPI/appsettings.json` (override with env vars such
 | `HybridSearch` | true | Add BM25 keyword search to vector search |
 | `MaxHistoryMessages` | 6 | Conversation turns used for follow-ups |
 | `DisableThinking` | true | Stops reasoning models (qwen3, deepseek-r1) spending the token budget on hidden thinking |
+| `OcrModel` | empty (off) | Ollama vision model that reads scanned PDF pages; `OcrMaxTokens` (2048) caps one page |
 | `HttpRetryAttempts` | 2 | Retries of transient Ollama/Qdrant failures; outages return 503 |
 | `MaxCrawlPages` / `CrawlDelayMilliseconds` | 50 / 500 | Largest allowed `maxPages`; pause between crawled pages |
 | `PrioritizeChat` / `ChatPriorityMaxWaitSeconds` | true / 30 | Ingestion pauses between embedding batches while a question is being answered (at most this long per batch) |
@@ -141,7 +142,9 @@ Architecture notes for contributors are in [CLAUDE.md](CLAUDE.md).
 
 ## Limitations
 
-- Scanned (image-only) PDFs are rejected: there is no OCR.
+- Scanned PDFs need a vision model: set `Rag__OcrModel` (e.g. `qwen2.5vl:3b`, pulled into Ollama) and pages with no text
+  layer are read by OCR, one model call per page (slow on CPU). Without it they are rejected. Page images stored as
+  JBIG2, CCITT or JPEG 2000 cannot be sent to the model and are reported.
   Pages rendered by JavaScript only are seen as empty (no browser is used). Jobs run one at a time, so a large crawl
   delays uploads queued after it.
 - Keyword search stems English words (Porter), so "costs" matches "cost"; other languages get exact-word matching.

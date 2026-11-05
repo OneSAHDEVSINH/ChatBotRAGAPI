@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 
 namespace ChatBotRAGAPI.Services;
 
-public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator
+public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, IImageTextReader
 {
     private readonly HttpClient _httpClient;
     private readonly RagOptions _options;
@@ -152,6 +152,36 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator
         if (_options.DisableThinking) body["think"] = false;
 
         return new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+    }
+
+    private const string OcrPrompt = """
+        Transcribe all the text in this scanned page exactly as written, in reading order.
+        Keep line breaks, and separate paragraphs with a blank line. Write tables row by row with " | " between cells.
+        Output only the page's text: no commentary, no description of the image, no Markdown.
+        If the page contains no text, output nothing.
+        """;
+
+    /// <summary>OCR through an Ollama vision model (<see cref="RagOptions.OcrModel"/>), one page image per call.</summary>
+    public async Task<string> ReadTextAsync(byte[] image, CancellationToken ct)
+    {
+        var body = new Dictionary<string, object?>
+        {
+            ["model"] = _options.OcrModel,
+            ["prompt"] = OcrPrompt,
+            ["images"] = new[] { Convert.ToBase64String(image) },
+            ["stream"] = false,
+            ["keep_alive"] = _options.KeepAlive,
+            ["options"] = new { num_predict = _options.OcrMaxTokens, num_ctx = Math.Max(_options.NumCtx, 4096), temperature = 0 }
+        };
+        if (_options.DisableThinking) body["think"] = false;
+
+        using var response = await _httpClient.PostAsync(
+            "/api/generate", new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"), ct);
+        await EnsureSuccessAsync(response, ct);
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        var text = doc.RootElement.GetProperty("response").GetString() ?? string.Empty;
+        return ThinkBlock().Replace(text, string.Empty).Trim();
     }
 
     /// <summary>Like EnsureSuccessStatusCode, but keeps Ollama's error text (e.g. "model not found").</summary>
