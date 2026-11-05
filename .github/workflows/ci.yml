@@ -26,8 +26,11 @@ jobs:
       - name: Build
         run: dotnet build ChatBotRAGAPI.slnx --no-restore --configuration Release -warnaserror
 
-      # Tests need no Ollama, Qdrant or network (local AI fallback + in-memory store).
+      # Tests need no Ollama or network (local AI fallback). The real-Qdrant tests start Qdrant in Docker via
+      # Testcontainers; they skip on machines without Docker, but here Docker is required so they cannot skip silently.
       - name: Test
+        env:
+          REQUIRE_DOCKER: "true"
         run: dotnet test --solution ChatBotRAGAPI.slnx --no-build --configuration Release --report-xunit-trx --results-directory TestResults
 
       - name: Upload test results

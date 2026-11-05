@@ -132,7 +132,7 @@ different embedding model ignores the cache and re-embeds everything.
 
 ```bash
 dotnet build ChatBotRAGAPI.slnx
-dotnet test                                                      # no Ollama, Qdrant or network needed
+dotnet test                                                      # no Ollama or network needed; real-Qdrant tests run when Docker is available
 dotnet test --filter-class ChatBotRAGAPI.Tests.TextChunkerTests  # one class
 ```
 

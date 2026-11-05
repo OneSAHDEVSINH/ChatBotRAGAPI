@@ -12,7 +12,7 @@ Run from the repo root (or `ChatBotRAGAPI/`):
 
 ```bash
 dotnet build ChatBotRAGAPI.slnx
-dotnet test                                                 # all tests; needs no Ollama/Qdrant/network
+dotnet test                                                 # all tests; needs no Ollama/network; QdrantIntegrationTests run only with Docker (skipped otherwise; CI sets REQUIRE_DOCKER=true so they must run)
 dotnet test --filter-class ChatBotRAGAPI.Tests.TextChunkerTests      # one class (or --filter-method "*Name*")
 dotnet run --project ChatBotRAGAPI --launch-profile http    # http://localhost:5170, Swagger at /swagger (Development only)
 docker compose -f ChatBotRAGAPI/docker-compose.yml up -d    # Qdrant :6333 + Ollama :11434
