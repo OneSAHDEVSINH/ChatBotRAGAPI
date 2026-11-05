@@ -185,14 +185,16 @@ function history() {
 
 /** Error text from a non-2xx response: problem+json detail/title, a JSON string, or the status. */
 async function errorMessage(response) {
-  if (response.status === 429) return "Too many requests — please wait a moment and try again.";
+  if (response.status === 429) return "Too many requests. Wait a moment, then ask again.";
+  // A server failure is temporary from the reader's side: say what broke, then what to do.
+  const retry = response.status >= 500 ? " Try again in a moment." : "";
   try {
     const body = await response.json();
     if (typeof body === "string") return body;
-    if (body?.detail || body?.title) return body.detail || body.title;
+    if (body?.detail || body?.title) return (body.detail || body.title) + retry;
   } catch { /* not JSON */ }
-  if (response.status === 503) return "The answering service is unavailable right now. Please try again later.";
-  return `Request failed (${response.status}).`;
+  if (response.status === 503) return "The answering service is unavailable right now. Try again in a moment.";
+  return `The request failed (${response.status}).${retry}`;
 }
 
 /** Parses a text/event-stream body, calling onEvent(type, data) for each event. */

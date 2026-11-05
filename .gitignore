@@ -20,3 +20,6 @@ TestResults/
 # Impeccable design-hook caches (config.json is shared and committed)
 .impeccable/hook.cache.json
 .impeccable/hook.pending.json
+
+# Hallmark writes renders next to the files it lints; never ship them from wwwroot
+ChatBotRAGAPI/wwwroot/.hallmark/

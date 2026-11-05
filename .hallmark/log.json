@@ -1,0 +1,23 @@
+[
+ {
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "app",
+  "shape": "app screen",
+  "theme": "coral",
+  "axes": "light/grotesk-sans/warm",
+  "nav": "top bar, wordmark and one quiet action",
+  "signature": "each answer printed as a cotton sheet, sources ruled beneath with numbered tabs",
+  "imagery": "none",
+  "photos": 0,
+  "entry": "ChatBotRAGAPI/wwwroot/index.html",
+  "sections": [
+   "empty sheet",
+   "conversation",
+   "composer"
+  ],
+  "waived": [],
+  "prompt": "a chat tool where staff ask questions about their company ingested documents and get answers with numbered citations",
+  "date": "2026-11-05"
+ }
+]

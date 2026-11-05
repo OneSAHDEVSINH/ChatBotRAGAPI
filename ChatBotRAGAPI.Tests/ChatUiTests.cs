@@ -51,6 +51,17 @@ public class ChatUiTests : IDisposable
         Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
     }
 
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/app.js")]
+    [InlineData("/app.css")]
+    public async Task Ui_files_are_revalidated_on_every_load(string path)
+    {
+        var response = await _client.GetAsync(path, Ct);
+        Assert.True(response.Headers.CacheControl?.NoCache, $"{path} must be served with Cache-Control: no-cache");
+        Assert.NotNull(response.Headers.ETag);
+    }
+
     [Fact]
     public async Task The_page_has_no_inline_scripts_or_styles_so_the_policy_does_not_break_it()
     {

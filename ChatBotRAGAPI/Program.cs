@@ -133,6 +133,8 @@ app.UseStaticFiles(new StaticFileOptions
         headers.ContentSecurityPolicy =
             "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
         headers.XContentTypeOptions = "nosniff";
+        // Revalidate on every load (a cheap 304 via the ETag), so a deploy never runs an old app.js against new HTML.
+        headers.CacheControl = "no-cache";
         headers["Referrer-Policy"] = "no-referrer";
     }
 });
