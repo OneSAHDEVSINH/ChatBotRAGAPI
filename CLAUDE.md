@@ -23,6 +23,8 @@ ollama list                                                 # models must match 
 
 `global.json` opts `dotnet test` into Microsoft.Testing.Platform (required for xUnit v3 on the .NET 10 SDK), so use MTP-style filters, not `--filter`. Unit tests cover services with fakes/`StubHttpHandler`; `ApiTests` boot the real app through `RagApiFactory` (`WebApplicationFactory<Program>` with in-memory store + local AI fallback + temp `DataDirectory`, set via `UseSetting` so `Program.cs` sees them before backends are chosen).
 
+Architecture diagram: `docs/architecture.html` (diagram-design skill) with `docs/architecture.png` embedded in the README; after editing the HTML, re-export the PNG at 2x so the two stay in sync.
+
 Manual API testing: `ChatBotRAGAPI/ChatBotRAGAPI.http` and `ChatBotRAGAPI/ChatBotRAGAPI.postman_collection.json`. Sample ingestion inputs (txt/csv/docx/xlsx) live in `ChatBotRAGAPI/testdata/`.
 
 ## Architecture

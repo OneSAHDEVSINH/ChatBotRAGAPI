@@ -11,6 +11,14 @@ then ask questions that are answered **only** from that content, with numbered c
 - **Chat UI** at `/`: streaming answers, clickable citations that show the passage, follow-up questions
 - Runs fully local with [Ollama](https://ollama.com); a no-LLM fallback mode needs nothing else at all
 
+## How it works
+
+[![Architecture: chat UI and clients call the chat API, whose RagService runs hybrid search over a vector store and a BM25 keyword index and asks Ollama for a cited answer; uploads and crawled pages go through the ingestion API and worker, which chunk, embed and store them](docs/architecture.png)](docs/architecture.html)
+
+Questions run along the top: the chat API hands them to `RagService`, which searches by meaning (vectors) and by
+keywords (BM25), keeps only passages above `MinScore`, and has Ollama answer from those with citations. Content
+enters along the bottom: uploads and crawled pages are queued, then extracted, chunked, embedded and stored.
+
 ## Quick start
 
 Requirements: [.NET 10 SDK](https://dotnet.microsoft.com/download) and, for real answers, Ollama.
