@@ -32,6 +32,7 @@ public sealed class RequestExamplesFilter : IOperationFilter
         [
             ("page", "One page", """{ "url": "https://example.com/" }"""),
             ("crawl", "Crawl the site from this page (up to 20 pages)", """{ "url": "https://example.com/", "maxPages": 20 }"""),
+            ("recrawl", "Re-crawl and remove pages that are gone", """{ "url": "https://example.com/", "maxPages": 20, "removeMissing": true }"""),
         ],
     };
 

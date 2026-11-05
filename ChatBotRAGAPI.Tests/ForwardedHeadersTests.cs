@@ -133,7 +133,8 @@ public class SwaggerDocumentTests : IDisposable
     public void Scrape_offers_single_page_and_crawl_examples()
     {
         var examples = Document().Paths["/api/ingestion/scrape"].Operations![HttpMethod.Post].RequestBody!.Content!["application/json"].Examples!;
-        Assert.Equal(["page", "crawl"], examples.Keys);
+        Assert.Equal(["page", "crawl", "recrawl"], examples.Keys);
+        Assert.Contains("removeMissing", examples["recrawl"].Value!.ToJsonString());
         Assert.Contains("maxPages", examples["crawl"].Value!.ToJsonString());
     }
 

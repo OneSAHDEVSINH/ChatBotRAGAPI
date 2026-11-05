@@ -48,6 +48,7 @@ matching passages instead of writing an answer). Good for trying the API and for
 curl -F "file=@ChatBotRAGAPI/testdata/company_profile.txt" http://localhost:5170/api/ingestion/upload
 curl -X POST http://localhost:5170/api/ingestion/scrape -H "Content-Type: application/json" -d '{"url":"https://example.com/"}'
 curl -X POST http://localhost:5170/api/ingestion/scrape -H "Content-Type: application/json" -d '{"url":"https://example.com/","maxPages":20}'  # crawl
+curl -X POST http://localhost:5170/api/ingestion/scrape -H "Content-Type: application/json" -d '{"url":"https://example.com/","maxPages":20,"removeMissing":true}'  # re-crawl, drop pages that are gone
 curl http://localhost:5170/api/ingestion/{jobId}          # Queued | Running | Completed | Failed
 
 # Ask
@@ -82,7 +83,9 @@ curl -X POST http://localhost:5170/api/chat/ask -H "Content-Type: application/js
   path (a home page covers the whole site; `/docs/intro` covers `/docs/...`), breadth-first, honouring robots.txt and
   pausing `CrawlDelayMilliseconds` between requests. Each page becomes its own document named by its URL, and the job
   message says how many pages were ingested. A single page often lacks facts that live elsewhere on the site (the
-  founding year on the About page, say), so crawl when a site is the source.
+  founding year on the About page, say), so crawl when a site is the source. Add `"removeMissing": true` to a re-crawl
+  to delete that site's pages the crawl no longer finds (unlinked, or 404/410); nothing is removed if the crawl stopped
+  at `maxPages`, and pages failing with a temporary error are kept.
 - `sources[].match` says how a passage was found (`semantic`, `keyword`, `both`); `score` is the cosine similarity
   (null for keyword-only matches).
 - **Swagger** describes every endpoint and field and pre-fills realistic examples (the drop-down offers more, e.g. a
@@ -138,8 +141,7 @@ Architecture notes for contributors are in [CLAUDE.md](CLAUDE.md).
 ## Limitations
 
 - Scanned (image-only) PDFs are rejected: there is no OCR.
-- Crawling doesn't remove pages that have disappeared from the site; delete them via `DELETE /api/documents`.
   Pages rendered by JavaScript only are seen as empty (no browser is used). Jobs run one at a time, so a large crawl
   delays uploads queued after it.
-- Keyword search has no stemming ("cost" does not match "costs"); vector search usually covers it.
+- Keyword search stems English words (Porter), so "costs" matches "cost"; other languages get exact-word matching.
 - On CPU, an 8B chat model takes 10–60 s per answer; streaming shows text as it is generated.

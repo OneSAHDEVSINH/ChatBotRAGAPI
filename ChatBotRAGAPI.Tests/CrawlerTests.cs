@@ -104,6 +104,13 @@ internal sealed class FakeSite
         return this;
     }
 
+    /// <summary>The page is gone: requests for it get 404.</summary>
+    public FakeSite Drop(string path)
+    {
+        _pages.Remove(path);
+        return this;
+    }
+
     public FakeSite Robots(string text) =>
         Raw("/robots.txt", () => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(text) });
 
@@ -247,7 +254,7 @@ public class WebCrawlerTests
 
         var (result, _) = await CrawlAsync(site, "/", 10);
 
-        Assert.Equal(new WebCrawler.CrawlResult(2, 1, 0), result);
+        Assert.Equal((2, 1, 0, true), (result.Ingested, result.Failed, result.Skipped, result.Complete));
         Assert.Equal("Ingested 2 page(s), 1 failed.", result.ToString());
     }
 
@@ -347,6 +354,92 @@ public class CrawlApiTests : IDisposable
             .Content.ReadFromJsonAsync<AskResponse>(Ct);
         Assert.Contains(answer!.Sources, s => s.Source == "https://site.test/about");
         Assert.Contains("1949", answer.Answer);
+    }
+
+    private async Task<JobStatusResponse> ScrapeAndWaitAsync(object body)
+    {
+        var response = await ScrapeAsync(body);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        return await WaitForJobAsync((await response.Content.ReadFromJsonAsync<EnqueueResponse>(Ct))!.JobId);
+    }
+
+    private async Task<List<string>> SourcesAsync() =>
+        (await _client.GetFromJsonAsync<List<DocumentInfo>>("/api/documents", Ct))!.Select(d => d.Source).Order().ToList();
+
+    [Fact]
+    public async Task Remove_missing_needs_a_crawl()
+    {
+        var response = await ScrapeAsync(new { url = "https://site.test/", removeMissing = true });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_recrawl_with_remove_missing_deletes_pages_that_are_gone()
+    {
+        await ScrapeAndWaitAsync(new { url = "https://site.test/", maxPages = 5 });
+        Assert.Equal(3, (await SourcesAsync()).Count);
+
+        // The contact page is taken down and unlinked.
+        _site.Page("/", "Acme", "Acme builds rockets.", "/about").Drop("/contact");
+        var status = await ScrapeAndWaitAsync(new { url = "https://site.test/", maxPages = 5, removeMissing = true });
+
+        Assert.Equal("Completed", status.Status);
+        Assert.Equal("Ingested 2 page(s). Removed 1 page(s) no longer on the site.", status.Message);
+        Assert.Equal(["https://site.test/", "https://site.test/about"], await SourcesAsync());
+
+        var answer = await (await _client.PostAsJsonAsync("/api/chat/ask", new AskRequest("Where is the Acme head office?"), Ct))
+            .Content.ReadFromJsonAsync<AskResponse>(Ct);
+        Assert.DoesNotContain(answer!.Sources, s => s.Source == "https://site.test/contact"); // its chunks are gone too
+    }
+
+    [Fact]
+    public async Task A_page_still_linked_but_answering_404_is_removed()
+    {
+        await ScrapeAndWaitAsync(new { url = "https://site.test/", maxPages = 5 });
+        _site.Drop("/contact"); // "/" still links to it
+
+        var status = await ScrapeAndWaitAsync(new { url = "https://site.test/", maxPages = 5, removeMissing = true });
+
+        Assert.Contains("Removed 1 page(s)", status.Message);
+        Assert.DoesNotContain("https://site.test/contact", await SourcesAsync());
+    }
+
+    [Fact]
+    public async Task A_page_failing_with_a_server_error_is_kept()
+    {
+        await ScrapeAndWaitAsync(new { url = "https://site.test/", maxPages = 5 });
+        _site.Raw("/contact", () => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+
+        var status = await ScrapeAndWaitAsync(new { url = "https://site.test/", maxPages = 5, removeMissing = true });
+
+        Assert.Equal("Ingested 2 page(s), 1 failed. No pages had disappeared.", status.Message);
+        Assert.Contains("https://site.test/contact", await SourcesAsync());
+    }
+
+    [Fact]
+    public async Task Nothing_is_removed_when_the_crawl_stops_at_max_pages()
+    {
+        await ScrapeAndWaitAsync(new { url = "https://site.test/", maxPages = 5 });
+
+        var status = await ScrapeAndWaitAsync(new { url = "https://site.test/", maxPages = 2, removeMissing = true });
+
+        Assert.StartsWith("Ingested 2 page(s). Nothing removed: the crawl stopped at maxPages", status.Message);
+        Assert.Equal(3, (await SourcesAsync()).Count);
+    }
+
+    [Fact]
+    public async Task Documents_outside_the_crawled_site_are_never_removed()
+    {
+        await ScrapeAndWaitAsync(new { url = "https://site.test/", maxPages = 5 });
+        await ScrapeAndWaitAsync(new { url = "https://other.test/about" });             // another host
+        using (var form = new MultipartFormDataContent { { new StringContent("Acme handbook."), "file", "handbook.txt" } })
+            await WaitForJobAsync((await (await _client.PostAsync("/api/ingestion/upload", form, Ct)).Content.ReadFromJsonAsync<EnqueueResponse>(Ct))!.JobId);
+
+        _site.Page("/", "Acme", "Acme builds rockets.");                                  // links to nothing now
+        var status = await ScrapeAndWaitAsync(new { url = "https://site.test/", maxPages = 5, removeMissing = true });
+
+        Assert.Contains("Removed 2 page(s)", status.Message);
+        Assert.Equal(["handbook.txt", "https://other.test/about", "https://site.test/"], await SourcesAsync());
     }
 
     [Fact]

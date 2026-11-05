@@ -167,6 +167,51 @@
           ]
         },
         {
+          "name": "Re-crawl, removing missing pages",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ingestion/scrape",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ingestion",
+                "scrape"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/\",\n  \"maxPages\": 20,\n  \"removeMissing\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Re-crawls the site and deletes its page documents the crawl no longer finds (unlinked, or 404/410). Nothing is removed if the crawl stops at maxPages; pages failing with a temporary error are kept."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+                  "pm.collectionVariables.set('jobId', pm.response.json().jobId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Upload file",
           "request": {
             "method": "POST",

@@ -25,7 +25,8 @@ public sealed class IngestionController : ControllerBase
     /// <remarks>
     /// Runs in the background: poll GET /api/ingestion/{jobId} until Completed. A crawl follows links on the
     /// same host and under the same path as url, honours robots.txt, and stores each page as its own document;
-    /// the job's message reports how many pages were ingested. Re-scraping a URL replaces that page's document.
+    /// the job's message reports how many pages were ingested. Re-scraping a URL replaces that page's document;
+    /// with removeMissing, pages of that site the crawl no longer finds are deleted.
     /// </remarks>
     /// <response code="202">Queued; returns the job id.</response>
     /// <response code="400">Not an http(s) URL, a private/loopback address, or maxPages out of range.</response>
@@ -46,8 +47,10 @@ public sealed class IngestionController : ControllerBase
         var maxPages = request.MaxPages ?? 1;
         if (maxPages < 1 || maxPages > _options.MaxCrawlPages)
             return BadRequest($"maxPages must be between 1 and {_options.MaxCrawlPages}.");
+        if (request.RemoveMissing && maxPages == 1)
+            return BadRequest("removeMissing needs a crawl: set maxPages above 1.");
 
-        var jobId = _queue.Enqueue("url", request.Url, uri.ToString(), maxPages);
+        var jobId = _queue.Enqueue("url", request.Url, uri.ToString(), maxPages, request.RemoveMissing);
         return Accepted(new EnqueueResponse(jobId, "Queued"));
     }
 

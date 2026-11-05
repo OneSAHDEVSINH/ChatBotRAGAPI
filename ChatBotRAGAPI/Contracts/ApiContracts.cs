@@ -6,7 +6,12 @@
 /// same path are followed, breadth-first, up to this many pages (at most Rag:MaxCrawlPages). Each page becomes
 /// its own document, named by its URL.
 /// </param>
-public sealed record ScrapeRequest(string Url, int? MaxPages = null);
+/// <param name="RemoveMissing">
+/// With a crawl: afterwards, delete page documents under the same host and path that the crawl no longer found
+/// (no longer linked, or answering 404/410). Skipped when the crawl stopped at maxPages, and pages that failed with
+/// a temporary error are kept.
+/// </param>
+public sealed record ScrapeRequest(string Url, int? MaxPages = null, bool RemoveMissing = false);
 /// <param name="History">
 /// Earlier turns of this conversation, oldest first (optional). The server keeps no conversation state;
 /// clients send back the previous questions and answers so follow-ups like "and the Pro plan?" make sense.
@@ -34,7 +39,7 @@ public sealed record JobStatusResponse(Guid JobId, string Status, string? Messag
 /// <param name="SourceValue">What the worker reads: a URL, or the saved upload path.</param>
 /// <param name="SourceName">Human-readable origin stored with each chunk: the URL or the original file name.</param>
 /// <param name="MaxPages">For "url" jobs: pages to crawl starting from SourceValue (1 = that page only).</param>
-public sealed record IngestionJob(Guid JobId, string SourceType, string SourceValue, string SourceName, int MaxPages = 1);
+public sealed record IngestionJob(Guid JobId, string SourceType, string SourceValue, string SourceName, int MaxPages = 1, bool RemoveMissing = false);
 
 /// <param name="Source">The document key: original file name or URL. Re-ingesting the same source replaces it.</param>
 public sealed record DocumentInfo(string Source, string SourceType, int ChunkCount, DateTimeOffset IngestedAt);

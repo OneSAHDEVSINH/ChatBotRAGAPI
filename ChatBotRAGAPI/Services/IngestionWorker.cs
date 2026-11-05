@@ -46,6 +46,7 @@ public sealed class IngestionWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         Directory.CreateDirectory(_options.DataDirectory);
+        WarnAboutLegacyFiles();
         await EnsureVectorStoreAsync(stoppingToken);
         if (_vectorStore.IsPersistent) await RebuildKeywordIndexAsync(stoppingToken);
         else EnqueueReindex();
@@ -85,7 +86,8 @@ public sealed class IngestionWorker : BackgroundService
                         await StoreDocumentAsync(source, "url", page.Text, saveText: true, token);
                         if (job.MaxPages > 1) _queue.MarkRunning(job.JobId, $"Crawling: {++pages} page(s) ingested so far.");
                     }, ct);
-                return job.MaxPages > 1 ? result.ToString() : null;
+                if (job.MaxPages <= 1) return null;
+                return job.RemoveMissing ? $"{result} {await RemoveMissingPagesAsync(result, ct)}" : result.ToString();
 
             case "file":
                 await StoreDocumentAsync(job.SourceName, "file", await _extractor.ExtractAsync(job.SourceValue, ct), saveText: true, ct);
@@ -98,6 +100,34 @@ public sealed class IngestionWorker : BackgroundService
             default:
                 throw new NotSupportedException($"Unknown source type '{job.SourceType}'.");
         }
+    }
+
+    /// <summary>
+    /// After a complete crawl, deletes the site's page documents the crawl no longer found. Never after a crawl cut
+    /// short by maxPages (pages it did not reach may still exist), and never a page that failed with a possibly
+    /// temporary error (<see cref="WebCrawler.CrawlResult.Kept"/>).
+    /// </summary>
+    private async Task<string> RemoveMissingPagesAsync(WebCrawler.CrawlResult result, CancellationToken ct)
+    {
+        if (!result.Complete || result.Kept is null || result.InScope is null)
+            return "Nothing removed: the crawl stopped at maxPages, so pages it did not reach may still exist.";
+
+        var removed = new List<string>();
+        using (await _registry.LockAsync(ct))
+        {
+            foreach (var entry in _registry.List())
+            {
+                if (entry.SourceType != "url" || !Uri.TryCreate(entry.Source, UriKind.Absolute, out var url)) continue;
+                if (!result.InScope(url) || result.Kept.Contains(WebCrawler.Key(url))) continue;
+
+                await _vectorStore.DeleteAsync(entry.ChunkIds.ToList(), ct);
+                _registry.Remove(entry.Source);
+                removed.Add(entry.Source);
+            }
+        }
+
+        foreach (var source in removed) _logger.LogInformation("Crawl: removed {Source}, no longer on the site", source);
+        return removed.Count == 0 ? "No pages had disappeared." : $"Removed {removed.Count} page(s) no longer on the site.";
     }
 
     /// <summary>
@@ -205,6 +235,20 @@ public sealed class IngestionWorker : BackgroundService
     }
 
     /// <summary>
+    /// Before the document registry existed, extracted text was kept as <c>{jobId}_raw.txt</c> with no record of
+    /// its source, so it can't be imported as a named, citable document. Say so instead of ignoring it silently.
+    /// </summary>
+    private void WarnAboutLegacyFiles()
+    {
+        var legacy = Directory.GetFiles(_options.DataDirectory, "*_raw.txt");
+        if (legacy.Length > 0)
+            _logger.LogWarning(
+                "{Count} file(s) named *_raw.txt in {Directory} predate the document registry and are not searchable. " +
+                "Re-ingest their sources (files or URLs) to make them answerable, then delete the *_raw.txt files.",
+                legacy.Length, _options.DataDirectory);
+    }
+
+    /// <summary>
     /// An exception escaping ExecuteAsync stops the whole host, so a vector store that is
     /// unreachable at startup (e.g. Qdrant still booting) is retried with backoff instead.
     /// Jobs stay queued meanwhile.
@@ -233,8 +277,8 @@ public sealed class IngestionWorker : BackgroundService
     }
 
     /// <summary>
-    /// Uploaded files are only a hand-off from the controller; the extracted text is kept in
-    /// {jobId}_raw.txt, so the original is removed whether ingestion succeeded or failed.
+    /// Uploaded files are only a hand-off from the controller; the extracted text is kept by the
+    /// document registry, so the original is removed whether ingestion succeeded or failed.
     /// </summary>
     private void DeleteUpload(string path)
     {

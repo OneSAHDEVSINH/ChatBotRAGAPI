@@ -1,4 +1,4 @@
-@ChatBotRAGAPI_HostAddress = http://localhost:5170
+﻿@ChatBotRAGAPI_HostAddress = http://localhost:5170
 # Must match Security:ApiKey when one is set (ingestion and document endpoints only).
 @ApiKey = 
 
@@ -15,6 +15,13 @@ X-Api-Key: {{ApiKey}}
 Content-Type: application/json
 
 { "url": "https://example.com/", "maxPages": 20 }
+
+### Re-crawl and delete that site's pages the crawl no longer finds (skipped if the crawl stops at maxPages)
+POST {{ChatBotRAGAPI_HostAddress}}/api/ingestion/scrape
+X-Api-Key: {{ApiKey}}
+Content-Type: application/json
+
+{ "url": "https://example.com/", "maxPages": 20, "removeMissing": true }
 
 ### Upload a file (txt/csv/docx/xlsx/pdf)
 POST {{ChatBotRAGAPI_HostAddress}}/api/ingestion/upload

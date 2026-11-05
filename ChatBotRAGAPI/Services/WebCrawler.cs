@@ -35,7 +35,12 @@ public sealed class WebCrawler
     /// <param name="Ingested">Pages handed to the ingest callback.</param>
     /// <param name="Failed">Discovered pages that could not be fetched (the start page failing fails the crawl).</param>
     /// <param name="Skipped">Fetched but not ingested: not HTML, no text, or a redirect to an already-seen page.</param>
-    public sealed record CrawlResult(int Ingested, int Failed, int Skipped)
+    /// <param name="Complete">Every in-scope link was followed (the crawl did not stop at maxPages).</param>
+    /// <param name="Kept">Page keys (<see cref="Key"/>) that are certainly still on the site: ingested, or failed
+    /// with an error that may be temporary. Pages that answered 404/410 are not in it.</param>
+    /// <param name="InScope">Whether a URL lies on the crawled host and under the crawled path.</param>
+    public sealed record CrawlResult(int Ingested, int Failed, int Skipped,
+        bool Complete = true, IReadOnlySet<string>? Kept = null, Func<Uri, bool>? InScope = null)
     {
         public override string ToString() =>
             $"Ingested {Ingested} page(s)" + (Failed > 0 ? $", {Failed} failed" : "") + (Skipped > 0 ? $", {Skipped} skipped" : "") + ".";
@@ -51,7 +56,7 @@ public sealed class WebCrawler
         var first = await _scraper.ScrapeAsync(start, ct);
         await ingest(startName, first, ct);
         var ingested = 1;
-        if (maxPages <= 1) return new CrawlResult(ingested, 0, 0);
+        if (maxPages <= 1) return new CrawlResult(ingested, 0, 0, Complete: false);
 
         // Scope and robots follow where the start page actually lives (http://x.com may redirect to https://www.x.com).
         var site = first.Url;
@@ -59,6 +64,7 @@ public sealed class WebCrawler
         var robots = RobotsRules.Parse(await _scraper.GetRobotsTxtAsync(site, ct));
 
         var seen = new HashSet<string> { Key(start), Key(site) };
+        var kept = new HashSet<string> { Key(start), Key(site) };
         var frontier = new Queue<Uri>();
         Enqueue(first.Links);
 
@@ -79,6 +85,9 @@ public sealed class WebCrawler
             {
                 _logger.LogWarning("Crawl: skipping {Url}: {Error}", url, ex.Message);
                 failed++;
+                // Only "not found" / "gone" means the page no longer exists; anything else may be temporary.
+                if ((ex as HttpRequestException)?.StatusCode is not (System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Gone))
+                    kept.Add(Key(url));
                 continue;
             }
 
@@ -87,16 +96,19 @@ public sealed class WebCrawler
             if (!page.IsHtml || string.IsNullOrWhiteSpace(page.Text)
                 || (redirected && (!seen.Add(Key(page.Url)) || !InScope(page.Url))))
             {
+                kept.Add(Key(url)); // it exists; it just isn't a page we index now
                 skipped++;
                 continue;
             }
 
             await ingest(page.Url.AbsoluteUri, page, ct);
             ingested++;
+            kept.Add(Key(url));
+            kept.Add(Key(page.Url));
             Enqueue(page.Links);
         }
 
-        return new CrawlResult(ingested, failed, skipped);
+        return new CrawlResult(ingested, failed, skipped, Complete: frontier.Count == 0, Kept: kept, InScope: InScope);
 
         void Enqueue(IEnumerable<Uri> links)
         {
@@ -118,6 +130,6 @@ public sealed class WebCrawler
     private static bool IsFile(Uri link) => NonPageExtensions.Contains(Path.GetExtension(link.AbsolutePath));
 
     /// <summary>Identity of a page for de-duplication: http/https and host case don't make a different page.</summary>
-    private static string Key(Uri uri) =>
+    public static string Key(Uri uri) =>
         uri.Host.ToLowerInvariant() + (uri.IsDefaultPort ? "" : ":" + uri.Port) + WebScraperService.WithoutFragment(uri).PathAndQuery;
 }
