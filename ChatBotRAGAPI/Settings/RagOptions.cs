@@ -48,6 +48,13 @@ public sealed class RagOptions
 
     public int EmbeddingBatchSize { get; set; } = 32;   // chunks per embedding request / vector upsert
 
+    /// <summary>
+    /// Ingestion waits between embedding batches while a chat request is running, so answers don't share the
+    /// model's CPU with a crawl. Each wait is capped at ChatPriorityMaxWaitSeconds so ingestion still progresses.
+    /// </summary>
+    public bool PrioritizeChat { get; set; } = true;
+    public int ChatPriorityMaxWaitSeconds { get; set; } = 30;
+
     /// <summary>Largest maxPages a scrape request may ask for (crawling a site from the given page).</summary>
     public int MaxCrawlPages { get; set; } = 50;
 

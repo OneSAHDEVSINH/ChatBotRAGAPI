@@ -1,4 +1,4 @@
-﻿namespace ChatBotRAGAPI.Services;
+namespace ChatBotRAGAPI.Services;
 
 /// <summary>
 /// In-memory BM25 index over chunk texts, the keyword half of hybrid search. Embeddings capture meaning but can

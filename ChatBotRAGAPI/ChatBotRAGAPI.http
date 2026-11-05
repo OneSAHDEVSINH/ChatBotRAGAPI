@@ -1,4 +1,4 @@
-﻿@ChatBotRAGAPI_HostAddress = http://localhost:5170
+@ChatBotRAGAPI_HostAddress = http://localhost:5170
 # Must match Security:ApiKey when one is set (ingestion and document endpoints only).
 @ApiKey = 
 

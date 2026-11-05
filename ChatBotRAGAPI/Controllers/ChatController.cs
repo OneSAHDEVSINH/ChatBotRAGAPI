@@ -14,13 +14,21 @@ public sealed class ChatController : ControllerBase
     private const int MaxHistoryContentLength = 8000;
 
     private readonly RagService _ragService;
+    private readonly ChatActivity _activity;
     private readonly ILogger<ChatController> _logger;
 
-    public ChatController(RagService ragService, ILogger<ChatController> logger)
+    public ChatController(RagService ragService, ChatActivity activity, ILogger<ChatController> logger)
     {
         _ragService = ragService;
+        _activity = activity;
         _logger = logger;
     }
+
+    /// <summary>
+    /// Ingestion yields to chat while this request runs. Released when the response completes, so a streamed
+    /// answer counts until its last event, and an aborted request is released too.
+    /// </summary>
+    private void MarkChatActive() => HttpContext.Response.RegisterForDispose(_activity.Begin());
 
     /// <summary>Answers a question from the ingested content, with [n] citations matching sources[].id.</summary>
     /// <remarks>
@@ -39,6 +47,7 @@ public sealed class ChatController : ControllerBase
     public async Task<ActionResult<AskResponse>> Ask([FromBody] AskRequest request, CancellationToken ct)
     {
         if (Validate(request) is { } error) return BadRequest(error);
+        MarkChatActive();
 
         var result = await _ragService.AskAsync(request.Question, request.History, ct);
         return Ok(result);
@@ -62,6 +71,7 @@ public sealed class ChatController : ControllerBase
     public async Task<IResult> AskStream([FromBody] AskRequest request, CancellationToken ct)
     {
         if (Validate(request) is { } error) return Results.BadRequest(error);
+        MarkChatActive();
 
         var answer = await _ragService.AskStreamingAsync(request.Question, request.History, ct);
         return TypedResults.ServerSentEvents(Events(answer, ct));

@@ -16,6 +16,7 @@ public sealed class IngestionWorker : BackgroundService
     private readonly IVectorStore _vectorStore;
     private readonly DocumentRegistry _registry;
     private readonly KeywordIndex _keywords;
+    private readonly ChatActivity _chat;
     private readonly RagOptions _options;
     private readonly ILogger<IngestionWorker> _logger;
 
@@ -28,6 +29,7 @@ public sealed class IngestionWorker : BackgroundService
         IVectorStore vectorStore,
         DocumentRegistry registry,
         KeywordIndex keywords,
+        ChatActivity chat,
         IOptions<RagOptions> options,
         ILogger<IngestionWorker> logger)
     {
@@ -39,6 +41,7 @@ public sealed class IngestionWorker : BackgroundService
         _vectorStore = vectorStore;
         _registry = registry;
         _keywords = keywords;
+        _chat = chat;
         _options = options.Value;
         _logger = logger;
     }
@@ -153,6 +156,8 @@ public sealed class IngestionWorker : BackgroundService
             var missing = Enumerable.Range(0, batch.Length).Where(i => !cached.ContainsKey(ids[i])).ToList();
             if (missing.Count > 0)
             {
+                if (_options.PrioritizeChat)
+                    await _chat.WaitForIdleAsync(TimeSpan.FromSeconds(Math.Max(0, _options.ChatPriorityMaxWaitSeconds)), ct);
                 var fresh = await _embeddingClient.EmbedBatchAsync(missing.Select(i => batch[i]).ToList(), ct);
                 for (var k = 0; k < missing.Count; k++) cached[ids[missing[k]]] = fresh[k];
                 embedded += missing.Count;

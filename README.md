@@ -122,6 +122,7 @@ All under `Rag` in `ChatBotRAGAPI/appsettings.json` (override with env vars such
 | `DisableThinking` | true | Stops reasoning models (qwen3, deepseek-r1) spending the token budget on hidden thinking |
 | `HttpRetryAttempts` | 2 | Retries of transient Ollama/Qdrant failures; outages return 503 |
 | `MaxCrawlPages` / `CrawlDelayMilliseconds` | 50 / 500 | Largest allowed `maxPages`; pause between crawled pages |
+| `PrioritizeChat` / `ChatPriorityMaxWaitSeconds` | true / 30 | Ingestion pauses between embedding batches while a question is being answered (at most this long per batch) |
 
 Changing the chunking settings or the embedding model means re-ingesting (or restarting, for the in-memory store).
 Embeddings are cached per document in `data/documents/*.vec`, so only chunks whose text changed are embedded again; a

@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using ChatBotRAGAPI.Contracts;
 using ChatBotRAGAPI.Services;
 using ChatBotRAGAPI.Settings;
