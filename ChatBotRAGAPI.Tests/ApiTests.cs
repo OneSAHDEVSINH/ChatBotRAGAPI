@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using ChatBotRAGAPI.Contracts;
 using ChatBotRAGAPI.Services;
@@ -150,11 +150,14 @@ public sealed class ApiTests : IDisposable
         var events = await StreamAsync(new AskRequest("What is the refund policy?"));
 
         Assert.Equal("sources", events[0].Event);
+        Assert.Equal("context", events[1].Event);
         Assert.Equal("done", events[^1].Event);
-        Assert.All(events[1..^1], e => Assert.Equal("delta", e.Event));
+        Assert.All(events[2..^1], e => Assert.Equal("delta", e.Event));
         Assert.Equal("handbook.txt", events[0].Data[0].GetProperty("source").GetString());
+        Assert.Equal(events[0].Data.GetArrayLength(), events[1].Data.GetArrayLength());
+        Assert.Contains("30 days", events[1].Data[0].GetString());
 
-        var streamed = string.Concat(events[1..^1].Select(e => e.Data.GetProperty("text").GetString()));
+        var streamed = string.Concat(events[2..^1].Select(e => e.Data.GetProperty("text").GetString()));
         var done = events[^1].Data.GetProperty("answer").GetString();
         Assert.Equal(done, streamed.Trim());
         Assert.Contains("30 days", done);
@@ -164,8 +167,9 @@ public sealed class ApiTests : IDisposable
     public async Task Stream_with_nothing_relevant_sends_no_data()
     {
         var events = await StreamAsync(new AskRequest("What is the refund policy?"));
-        Assert.Equal(["sources", "delta", "done"], events.Select(e => e.Event));
+        Assert.Equal(["sources", "context", "delta", "done"], events.Select(e => e.Event));
         Assert.Equal(0, events[0].Data.GetArrayLength());
+        Assert.Equal(0, events[1].Data.GetArrayLength());
         Assert.Equal(RagService.NoDataAnswer, events[^1].Data.GetProperty("answer").GetString());
     }
 

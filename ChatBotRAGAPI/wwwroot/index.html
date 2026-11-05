@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Knowledge Chat</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.2 3.6c-.5.4-1.3.1-1.3-.6V16A2.5 2.5 0 0 1 4 13.5z"/></svg>
+      <h1>Knowledge Chat</h1>
+    </div>
+    <button id="new-chat" class="ghost" type="button" title="Start a new conversation">New chat</button>
+  </header>
+
+  <main id="conversation" class="conversation" aria-live="polite">
+    <section id="empty" class="empty">
+      <h2>Ask about your documents</h2>
+      <p>Answers come only from the ingested pages and files, with numbered citations.
+         Click a citation to read the passage it came from.</p>
+      <p class="hint">If nothing relevant was ingested, the answer is <q>I don't have enough data.</q></p>
+    </section>
+  </main>
+
+  <footer class="composer-wrap">
+    <form id="composer" class="composer" autocomplete="off">
+      <label for="question" class="visually-hidden">Your question</label>
+      <textarea id="question" rows="1" maxlength="4000" placeholder="Ask a question…" required></textarea>
+      <button id="send" type="submit" class="primary" title="Send (Enter)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6l-.1 6.5L15 12l-11.7 1.9z"/></svg>
+        <span class="visually-hidden">Send</span>
+      </button>
+      <button id="stop" type="button" class="danger" title="Stop" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        <span class="visually-hidden">Stop</span>
+      </button>
+    </form>
+    <p class="footnote">Enter to send · Shift+Enter for a new line · Follow-up questions use the conversation so far</p>
+  </footer>
+
+  <template id="tpl-user">
+    <article class="msg user"><div class="bubble"></div></article>
+  </template>
+  <template id="tpl-assistant">
+    <article class="msg assistant">
+      <div class="bubble">
+        <div class="status"><span class="dots"><i></i><i></i><i></i></span><span class="status-text">Searching documents…</span></div>
+        <div class="answer"></div>
+        <ol class="sources" hidden></ol>
+      </div>
+    </article>
+  </template>
+</body>
+</html>

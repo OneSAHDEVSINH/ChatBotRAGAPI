@@ -58,7 +58,7 @@ Content-Type: application/json
   ]
 }
 
-### Streamed answer (Server-Sent Events: sources, delta..., done | error); also accepts history
+### Streamed answer (Server-Sent Events: sources, context, delta..., done | error); also accepts history
 POST {{ChatBotRAGAPI_HostAddress}}/api/chat/ask/stream
 Content-Type: application/json
 

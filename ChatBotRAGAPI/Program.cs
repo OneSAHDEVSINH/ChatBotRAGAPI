@@ -120,6 +120,22 @@ if (app.Environment.IsDevelopment())
 
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
+
+// Chat UI (wwwroot/index.html at "/"). It only calls the open chat endpoint, so it adds no exposure.
+// The strict CSP is safe because the UI has no inline scripts or styles; it covers static files only
+// (Swagger UI needs inline scripts).
+app.UseDefaultFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        var headers = ctx.Context.Response.Headers;
+        headers.ContentSecurityPolicy =
+            "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+        headers.XContentTypeOptions = "nosniff";
+        headers["Referrer-Policy"] = "no-referrer";
+    }
+});
 app.UseRateLimiter();
 app.UseAuthorization();
 

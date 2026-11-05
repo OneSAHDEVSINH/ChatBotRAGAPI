@@ -16,7 +16,7 @@ public sealed record AskRequest(string Question, IReadOnlyList<ChatMessage>? His
 /// <param name="Role">"user" or "assistant".</param>
 public sealed record ChatMessage(string Role, string Content);
 
-/// <summary>SSE payloads of /api/chat/ask/stream: "sources" (list of ContextSource), then "delta"*, then "done" or "error".</summary>
+/// <summary>SSE payloads of /api/chat/ask/stream: "sources" (list of ContextSource), "context" (list of passage texts), then "delta"*, then "done" or "error".</summary>
 public sealed record StreamDelta(string Text);
 public sealed record StreamDone(string Answer);
 public sealed record StreamError(string Message);

@@ -330,7 +330,7 @@
                 }
               }
             },
-            "description": "Server-Sent Events: sources, then delta..., then done (or error). Accepts history too."
+            "description": "Server-Sent Events: sources, context (passage texts), then delta..., then done (or error). Accepts history too."
           }
         }
       ]

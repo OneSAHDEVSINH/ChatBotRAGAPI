@@ -8,6 +8,7 @@ then ask questions that are answered **only** from that content, with numbered c
 - **Cited answers**: `[1]`, `[2]` in the answer match `sources[].id`
 - **Streaming** answers over Server-Sent Events, and **follow-up questions** via conversation history
 - **Documents** are tracked by source: re-ingesting replaces, deleting removes every chunk, and the index survives restarts
+- **Chat UI** at `/`: streaming answers, clickable citations that show the passage, follow-up questions
 - Runs fully local with [Ollama](https://ollama.com); a no-LLM fallback mode needs nothing else at all
 
 ## Quick start
@@ -19,7 +20,7 @@ Requirements: [.NET 10 SDK](https://dotnet.microsoft.com/download) and, for real
 ollama pull nomic-embed-text
 ollama pull qwen3:8b
 
-# 2. Run (Swagger UI at http://localhost:5170/swagger in Development)
+# 2. Run: chat UI at http://localhost:5170/, Swagger at /swagger (Development)
 dotnet run --project ChatBotRAGAPI --launch-profile http
 ```
 
@@ -62,8 +63,9 @@ curl -X POST http://localhost:5170/api/chat/ask -H "Content-Type: application/js
 | `GET /api/documents` | List ingested documents (source, type, chunk count, time) |
 | `DELETE /api/documents?source=...` | Remove a document and all its chunks |
 | `POST /api/chat/ask` | Answer a question `{ "question": "...", "history": [...] }` |
-| `POST /api/chat/ask/stream` | Same, as Server-Sent Events: `sources`, `delta`..., `done` (or `error`) |
+| `POST /api/chat/ask/stream` | Same, as Server-Sent Events: `sources`, `context`, `delta`..., `done` (or `error`) |
 | `GET /health` | Health check |
+| `GET /` | Chat UI (`wwwroot/`) |
 
 - **Follow-ups**: the server keeps no conversation state. Send earlier turns as
   `"history": [{"role":"user","content":"..."},{"role":"assistant","content":"..."}]`.

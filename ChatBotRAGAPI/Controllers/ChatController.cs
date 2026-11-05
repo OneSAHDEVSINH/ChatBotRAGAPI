@@ -46,7 +46,8 @@ public sealed class ChatController : ControllerBase
 
     /// <summary>Same as ask, but streams the answer as Server-Sent Events while it is generated.</summary>
     /// <remarks>
-    /// Events: "sources" (the cited passages, sent before generation starts), then "delta" pieces of the answer,
+    /// Events: "sources" (the cited passages, sent before generation starts), "context" (their texts, in the same
+    /// order, like AskResponse.context), then "delta" pieces of the answer,
     /// then "done" with the full answer, or "error" if generation fails. Swagger UI only shows the stream once it
     /// has finished; use curl -N or an EventSource-style client to see it live.
     /// </remarks>
@@ -70,6 +71,7 @@ public sealed class ChatController : ControllerBase
         RagService.StreamingAnswer answer, [EnumeratorCancellation] CancellationToken ct)
     {
         yield return new SseItem<object>(answer.Sources, "sources");
+        yield return new SseItem<object>(answer.Context, "context"); // passage texts, same order as sources
 
         var full = new StringBuilder();
         await using var pieces = answer.Pieces.GetAsyncEnumerator(ct);
