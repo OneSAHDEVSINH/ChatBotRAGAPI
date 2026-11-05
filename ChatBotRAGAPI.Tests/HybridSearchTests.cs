@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using ChatBotRAGAPI.Contracts;
 using ChatBotRAGAPI.Services;
 using ChatBotRAGAPI.Settings;
@@ -33,8 +33,8 @@ public class KeywordIndexTests
         index.Upsert(Id(1), "The Pro plan costs 999 per month.", "s");
 
         var hit = Assert.Single(index.Search("What does the Enterprise plan cost?", 5));
-        // Terms: enterprise, plan, cost. Only "plan" matches: there is no stemming, so "cost" != "costs".
-        Assert.Equal(1.0 / 3, hit.Coverage, 6);
+        // Terms: enterprise, plan, cost. "plan" and "cost" match ("costs" stems to "cost"); "enterprise" does not.
+        Assert.Equal(2.0 / 3, hit.Coverage, 6);
     }
 
     [Fact]

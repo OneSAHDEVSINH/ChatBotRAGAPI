@@ -1,9 +1,10 @@
-namespace ChatBotRAGAPI.Services;
+﻿namespace ChatBotRAGAPI.Services;
 
 /// <summary>
 /// In-memory BM25 index over chunk texts, the keyword half of hybrid search. Embeddings capture meaning but can
 /// rank exact terms (plan names, codes, "Q3-2026") low; BM25 rewards rare query terms that occur verbatim.
-/// Tokenized with <see cref="LocalText"/> (lower-case alphanumerics, stopwords dropped).
+/// Tokenized with <see cref="LocalText"/> (lower-case alphanumerics, stopwords dropped), then stemmed with
+/// <see cref="PorterStemmer"/> so word forms meet ("founded"/"found", "costs"/"cost").
 /// Kept in sync with the vector store by <see cref="KeywordIndexingVectorStore"/>.
 /// </summary>
 public sealed class KeywordIndex
@@ -28,7 +29,7 @@ public sealed class KeywordIndex
 
     public void Upsert(Guid id, string text, string source)
     {
-        var counts = LocalText.Tokenize(text).GroupBy(t => t).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+        var counts = Terms(text).GroupBy(t => t).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
         lock (_sync)
         {
             RemoveLocked(id);
@@ -53,7 +54,7 @@ public sealed class KeywordIndex
 
     public IReadOnlyList<Hit> Search(string query, int topK)
     {
-        var terms = LocalText.Tokenize(query).Distinct(StringComparer.Ordinal).ToList();
+        var terms = Terms(query).Distinct(StringComparer.Ordinal).ToList();
         if (terms.Count == 0 || topK <= 0) return [];
 
         lock (_sync)
@@ -84,6 +85,9 @@ public sealed class KeywordIndex
                 .ToList();
         }
     }
+
+    /// <summary>Index terms: tokens stemmed, so a query and a passage match across word forms.</summary>
+    public static IEnumerable<string> Terms(string text) => LocalText.Tokenize(text).Select(PorterStemmer.Stem);
 
     private void RemoveLocked(Guid id)
     {
