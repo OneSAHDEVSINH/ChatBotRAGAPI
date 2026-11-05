@@ -1,5 +1,6 @@
 ﻿using ChatBotRAGAPI.Security;
 using ChatBotRAGAPI.Services;
+using ChatBotRAGAPI.Services.Ai;
 using ChatBotRAGAPI.Settings;
 using ChatBotRAGAPI.Swagger;
 using Microsoft.Extensions.Options;
@@ -76,7 +77,7 @@ builder.Services.AddSingleton<IVectorStore>(sp => new KeywordIndexingVectorStore
         : sp.GetRequiredService<QdrantClient>(),
     sp.GetRequiredService<KeywordIndex>()));
 
-// AI layer
+// AI layer: the no-LLM fallback, or the providers named by Rag:ChatProvider / Rag:EmbeddingProvider.
 if (ragOptions.UseLocalAiFallback)
 {
     builder.Services.AddSingleton<IEmbeddingClient, LocalEmbeddingClient>();
@@ -84,18 +85,7 @@ if (ragOptions.UseLocalAiFallback)
 }
 else
 {
-    builder.Services.AddHttpClient<OllamaClient>(client =>
-    {
-        client.BaseAddress = new Uri(ragOptions.OllamaBaseUrl);
-        client.Timeout = TimeSpan.FromMinutes(10); // important
-    }).AddBackendRetries(ragOptions);
-
-    builder.Services.AddSingleton<IEmbeddingClient>(sp => sp.GetRequiredService<OllamaClient>());
-    builder.Services.AddSingleton<IAnswerGenerator>(sp => sp.GetRequiredService<OllamaClient>());
-
-    // OCR for scanned PDF pages, only when a vision model is configured.
-    if (!string.IsNullOrWhiteSpace(ragOptions.OcrModel))
-        builder.Services.AddSingleton<IImageTextReader>(sp => sp.GetRequiredService<OllamaClient>());
+    AiProviders.Register(builder.Services, ragOptions);
 }
 
 builder.Services.AddTransient<WebCrawler>();

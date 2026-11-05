@@ -61,7 +61,7 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, I
         string question, IReadOnlyList<SearchHit> context, IReadOnlyList<ChatMessage> history, CancellationToken ct)
     {
         using var response = await _httpClient.PostAsync(
-            "/api/generate", GenerateBody(BuildPrompt(question, context, history), stream: false), ct);
+            "/api/generate", GenerateBody(AnswerPrompt.Build(question, context, history), stream: false), ct);
         await EnsureSuccessAsync(response, ct);
 
         var json = await response.Content.ReadAsStringAsync(ct);
@@ -79,7 +79,7 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, I
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/generate")
         {
-            Content = GenerateBody(BuildPrompt(question, context, history), stream: true)
+            Content = GenerateBody(AnswerPrompt.Build(question, context, history), stream: true)
         };
         using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         await EnsureSuccessAsync(response, ct);
@@ -106,31 +106,6 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, I
         if (filter.Flush() is { Length: > 0 } rest) yield return rest.TrimEnd();
     }
 
-    private static string BuildPrompt(string question, IReadOnlyList<SearchHit> context, IReadOnlyList<ChatMessage> history)
-    {
-        var passages = string.Join("\n\n", context.Select((h, i) => $"[{i + 1}] (source: {h.Source})\n{h.Text.Trim()}"));
-
-        // Earlier answers cite passages that are not in this prompt, so their [n] markers would point at the wrong text.
-        var conversation = history.Count == 0
-            ? string.Empty
-            : "Conversation so far (use it only to understand what the question refers to, not as a source of facts):\n" +
-              string.Join("\n", history.Select(m =>
-                  $"{(m.Role == "assistant" ? "Assistant" : "User")}: {CitationMarker().Replace(m.Content, string.Empty).Trim()}")) +
-              "\n\n";
-
-        return $"""
-        Answer the question using ONLY the numbered context passages below.
-        - If the passages do not contain the answer, reply exactly: I don't have enough data.
-        - Be concise. After each fact, cite the passage numbers you used in square brackets, e.g. [1] or [1][2].
-
-        Context:
-        {passages}
-
-        {conversation}Question: {question}
-        Answer:
-        """;
-    }
-
     private StringContent GenerateBody(string prompt, bool stream)
     {
         var body = new Dictionary<string, object?>
@@ -154,12 +129,6 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, I
         return new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
     }
 
-    private const string OcrPrompt = """
-        Transcribe all the text in this scanned page exactly as written, in reading order.
-        Keep line breaks, and separate paragraphs with a blank line. Write tables row by row with " | " between cells.
-        Output only the page's text: no commentary, no description of the image, no Markdown.
-        If the page contains no text, output nothing.
-        """;
 
     /// <summary>OCR through an Ollama vision model (<see cref="RagOptions.OcrModel"/>), one page image per call.</summary>
     public async Task<string> ReadTextAsync(byte[] image, CancellationToken ct)
@@ -167,7 +136,7 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, I
         var body = new Dictionary<string, object?>
         {
             ["model"] = _options.OcrModel,
-            ["prompt"] = OcrPrompt,
+            ["prompt"] = OcrPrompt.Text,
             ["images"] = new[] { Convert.ToBase64String(image) },
             ["stream"] = false,
             ["keep_alive"] = _options.KeepAlive,
@@ -198,6 +167,4 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, I
     [GeneratedRegex(@"<think>.*?</think>", RegexOptions.Singleline)]
     private static partial Regex ThinkBlock();
 
-    [GeneratedRegex(@"\s*\[\d+\]")]
-    private static partial Regex CitationMarker();
 }

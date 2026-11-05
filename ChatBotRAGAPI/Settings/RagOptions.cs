@@ -19,6 +19,21 @@ public sealed class RagOptions
     /// <summary>Token budget for one page's transcription (a dense page is ~600-1000 tokens).</summary>
     public int OcrMaxTokens { get; set; } = 2048;
     public string OllamaBaseUrl { get; set; } = "http://127.0.0.1:11434";
+
+    /// <summary>
+    /// Who writes answers: "Ollama" (default, local), "OpenAI" (OpenAI, Azure OpenAI or any OpenAI-compatible
+    /// server, via Microsoft.Extensions.AI) or "Anthropic" (Claude). ChatModel names the model for that provider.
+    /// </summary>
+    public string ChatProvider { get; set; } = "Ollama";
+
+    /// <summary>
+    /// Who embeds text: "Ollama" (default) or "OpenAI". Anthropic has no embeddings API. Changing the embedding
+    /// model changes the vector space: set EmbeddingDimensions to its size and recalibrate MinScore.
+    /// </summary>
+    public string EmbeddingProvider { get; set; } = "Ollama";
+
+    public OpenAiProviderOptions OpenAI { get; set; } = new();
+    public AnthropicProviderOptions Anthropic { get; set; } = new();
     public int ChunkSize { get; set; } = 700;
     public int ChunkOverlap { get; set; } = 80;
     public int TopK { get; set; } = 3;
@@ -81,4 +96,30 @@ public sealed class RagOptions
 
     /// <summary>Sends think=false to Ollama so reasoning models don't spend MaxGenerateTokens on hidden thinking.</summary>
     public bool DisableThinking { get; set; } = true;
+}
+
+/// <summary>Rag:OpenAI. Also covers Azure OpenAI and OpenAI-compatible servers through Endpoint.</summary>
+public sealed class OpenAiProviderOptions
+{
+    /// <summary>Empty = the OPENAI_API_KEY environment variable. Supply it via environment or user secrets, never appsettings.</summary>
+    public string ApiKey { get; set; } = "";
+
+    /// <summary>
+    /// Empty = api.openai.com. Azure OpenAI: "https://{resource}.openai.azure.com/openai/v1/"; any OpenAI-compatible
+    /// server, e.g. Ollama's "http://127.0.0.1:11434/v1".
+    /// </summary>
+    public string Endpoint { get; set; } = "";
+
+    /// <summary>Answer budget. Reasoning models count their reasoning in it, so it is far above Ollama's MaxGenerateTokens.</summary>
+    public int MaxOutputTokens { get; set; } = 16000;
+}
+
+/// <summary>Rag:Anthropic (Claude).</summary>
+public sealed class AnthropicProviderOptions
+{
+    /// <summary>Empty = the SDK's own lookup (ANTHROPIC_API_KEY, then an `ant auth login` profile). Never put it in appsettings.</summary>
+    public string ApiKey { get; set; } = "";
+
+    /// <summary>Answer budget. Current Claude models think before answering and that counts against it.</summary>
+    public int MaxTokens { get; set; } = 16000;
 }

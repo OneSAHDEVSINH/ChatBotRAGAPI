@@ -38,6 +38,20 @@ as environment variables, or edit `ChatBotRAGAPI/appsettings.json`.
 **No Ollama?** Set `Rag__UseLocalAiFallback=true`: hashed bag-of-words embeddings and extractive answers (it returns the
 matching passages instead of writing an answer). Good for trying the API and for tests.
 
+**OpenAI, Azure OpenAI or Claude instead of Ollama** (via Microsoft.Extensions.AI): pick the providers and models with
+environment variables; keys go in the environment or user secrets, never in `appsettings.json`.
+
+```bash
+# Claude answers, Ollama keeps embedding (Anthropic has no embeddings API)
+Rag__ChatProvider=Anthropic  Rag__ChatModel=claude-opus-5-5  ANTHROPIC_API_KEY=...
+
+# OpenAI for both (a different embedding model: set its size and recalibrate MinScore)
+Rag__ChatProvider=OpenAI  Rag__ChatModel=gpt-5  Rag__EmbeddingProvider=OpenAI Rag__EmbeddingModel=text-embedding-3-small  Rag__EmbeddingDimensions=1536  OPENAI_API_KEY=...
+
+# Azure OpenAI, or any OpenAI-compatible server: add the endpoint
+Rag__OpenAI__Endpoint=https://<resource>.openai.azure.com/openai/v1/  Rag__OpenAI__ApiKey=...
+```
+
 **Qdrant** (optional, persistent vectors): `docker compose -f ChatBotRAGAPI/docker-compose.yml up -d qdrant` and set
 `Rag__UseInMemoryVectorStore=false`. Without it an in-memory store is used and rebuilt from stored documents at startup.
 
@@ -112,7 +126,9 @@ All under `Rag` in `ChatBotRAGAPI/appsettings.json` (override with env vars such
 
 | Setting | Default | Notes |
 |---|---|---|
-| `EmbeddingModel` / `ChatModel` | `text-embedding-nomic:latest` / `gpt-5-qwen3:latest` | Ollama model names (these are local builds; use your own) |
+| `ChatProvider` / `EmbeddingProvider` | `Ollama` / `Ollama` | `Ollama`, `OpenAI` (also Azure OpenAI and OpenAI-compatible servers via `OpenAI:Endpoint`) or `Anthropic` (chat only) |
+| `EmbeddingModel` / `ChatModel` | `text-embedding-nomic:latest` / `gpt-5-qwen3:latest` | Model names for those providers (the defaults are local Ollama builds; use your own) |
+| `OpenAI:MaxOutputTokens` / `Anthropic:MaxTokens` | 16000 | Answer budget for cloud models, which count their reasoning in it (`MaxGenerateTokens` is Ollama's) |
 | `EmbeddingDimensions` | 768 | Must match the embedding model (Qdrant collection size) |
 | `MinScore` | 0.45 | Relevance cut-off, calibrated for nomic-embed-text; **recalibrate for other embedding models** |
 | `TopK` | 3 | Passages given to the model |
