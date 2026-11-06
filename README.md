@@ -91,6 +91,8 @@ curl -X POST http://localhost:5170/api/chat/ask -H "Content-Type: application/js
 | `DELETE /api/documents?source=...` | Remove a document and all its chunks |
 | `POST /api/chat/ask` | Answer a question `{ "question": "...", "history": [...] }` |
 | `POST /api/chat/ask/stream` | Same, as Server-Sent Events: `sources`, `context`, `delta`..., `done` (or `error`) |
+| `POST /api/eval/calibrate` | Suggest `MinScore` for the current embedding model from known questions (no generation) |
+| `POST /api/eval/answers` | Ask each known question for real; score retrieval, facts, citations and refusals |
 | `GET /health` | Liveness: the process answers (for restarts) |
 | `GET /health/ready` | Readiness: vector store reachable, models pulled (Ollama), worker started; JSON per check, 503 when not ready |
 | `GET /` | Chat UI (`wwwroot/`) |
@@ -145,6 +147,11 @@ All under `Rag` in `ChatBotRAGAPI/appsettings.json` (override with env vars such
 | `HttpRetryAttempts` | 2 | Retries of transient Ollama/Qdrant failures; outages return 503 |
 | `MaxCrawlPages` / `CrawlDelayMilliseconds` | 50 / 500 | Largest allowed `maxPages`; pause between crawled pages |
 | `PrioritizeChat` / `ChatPriorityMaxWaitSeconds` | true / 30 | Ingestion pauses between embedding batches while a question is being answered (at most this long per batch) |
+
+**Measuring quality.** `ChatBotRAGAPI/testdata/eval.json` lists questions about the sample files with the source that answers
+each (or none, for questions that must be refused) and facts the answer must contain. Send it, or your own list in the same
+shape, to `POST /api/eval/calibrate` after changing the embedding model (it suggests `MinScore`), and to
+`POST /api/eval/answers` before and after changing the chat model or prompt (it scores every answer). Both need the API key.
 
 Changing the chunking settings or the embedding model means re-ingesting (or restarting, for the in-memory store).
 Embeddings are cached per document in `data/documents/*.vec`, so only chunks whose text changed are embedded again; a

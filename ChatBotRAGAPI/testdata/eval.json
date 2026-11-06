@@ -1,0 +1,16 @@
+{
+  "cases": [
+    { "question": "When was the company founded?", "expectedSource": "company_profile.txt", "mustContain": ["2016"] },
+    { "question": "Where is the head office?", "expectedSource": "company_profile.txt", "mustContain": ["Ahmedabad"] },
+    { "question": "Which days is the support desk open?", "expectedSource": "company_profile.txt", "mustContain": ["Monday", "Friday"] },
+    { "question": "How much does the Pro plan of Umbraco Managed Support cost per month?", "expectedSource": "service_catalog.csv", "mustContain": ["999"] },
+    { "question": "What is the SLA response time for the Cloud Cost Optimization Enterprise plan?", "expectedSource": "service_catalog.csv", "mustContain": ["24"] },
+    { "question": "What was the revenue in Q3 2026?", "expectedSource": "quarterly_kpi.xlsx", "mustContain": ["214"] },
+    { "question": "How many qualified leads were there in Q2-2026?", "expectedSource": "quarterly_kpi.xlsx", "mustContain": ["233"] },
+    { "question": "By how much did page load time improve for RetailPro?", "expectedSource": "client_success_story.docx", "mustContain": ["4.2", "1.6"] },
+    { "question": "What caching was added for RetailPro's product pages?", "expectedSource": "client_success_story.docx", "mustContain": ["Redis"] },
+    { "question": "How do I bake sourdough bread?" },
+    { "question": "Who won the FIFA World Cup in 2022?" },
+    { "question": "What is the capital of France?" }
+  ]
+}
