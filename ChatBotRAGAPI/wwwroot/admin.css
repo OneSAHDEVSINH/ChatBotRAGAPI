@@ -1,0 +1,136 @@
+/* Admin page: the chat UI's Coral system (tokens, paper, controls, top bar, dark mode) plus panels, forms and tables.
+ * An app screen: dense, tables before cards, colour only for state. Every value goes through a token. */
+@import url("./app.css");
+
+body { height: auto; min-height: 100%; }
+/* A long page: keep the desk's daylight on the viewport instead of ending after the first screen. */
+.desk { background-attachment: fixed; }
+
+.admin-shell {
+  width: 100%;
+  max-width: calc(72rem + 2 * var(--space-lg));
+  margin-inline: auto;
+  padding-inline: var(--space-lg);
+}
+
+.admin {
+  display: grid;
+  gap: var(--space-lg);
+  padding-block: var(--space-xl) var(--space-2xl);
+}
+
+a.btn { text-decoration: none; }
+
+.panel {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-xl);
+  min-width: 0;
+}
+.panel h2 { font-size: var(--text-lg); }
+.panel h3 { font-size: var(--text-md); }
+.panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
+.stack { display: grid; gap: var(--space-xs); align-content: start; }
+.stack label { color: var(--color-ink-2); font-size: var(--text-sm); }
+.stack > .btn { justify-self: start; }
+.add-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-xl); }
+
+.field {
+  flex: 1 1 12rem;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-input);
+  box-shadow: inset 0 0 0 1px var(--color-muted);
+  background: var(--color-cotton);
+  color: var(--color-ink);
+  font-size: var(--text-md);
+  outline: 2px solid transparent;
+  outline-offset: -3px;
+}
+.field:focus-visible { outline-color: var(--color-focus); }
+.field::placeholder { color: var(--color-muted); }
+.field--number { flex: 0 0 6rem; }
+.field--select { flex: 0 0 auto; min-width: 10rem; }
+.field--file { padding: var(--space-xs) var(--space-sm); }
+.field--file::file-selector-button {
+  margin-right: var(--space-sm);
+  padding: var(--space-2xs) var(--space-sm);
+  border: 1px solid var(--color-rule-2);
+  border-radius: var(--radius-input);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.check { display: inline-flex; align-items: center; gap: var(--space-2xs); color: var(--color-ink-2); font-size: var(--text-sm); }
+.check input { accent-color: var(--color-ink); width: 16px; height: 16px; }
+
+.btn--danger {
+  background-color: var(--color-cotton);
+  color: var(--color-error);
+  box-shadow: var(--edge-stock), var(--cast-stock);
+}
+
+.hint { color: var(--color-muted); font-size: var(--text-sm); }
+.message { min-height: 1lh; color: var(--color-ink-2); font-size: var(--text-sm); }
+.message[data-kind="error"] { color: var(--color-error); }
+.message[data-kind="ok"] { color: var(--color-ink); }
+.empty-row { color: var(--color-muted); font-size: var(--text-sm); }
+
+.checks { display: grid; gap: var(--space-xs); margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); color: var(--color-ink-2); }
+
+/* Tables: horizontal rules only, full width, scrolling sideways on a phone. */
+.table-wrap { position: relative; overflow-x: auto; } /* also the containing block for visually-hidden header text, so it scrolls with the table instead of widening the page */
+table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+th {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: var(--rule-hair) solid var(--color-rule-2);
+  color: var(--color-muted);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+  vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: 0; }
+th:first-child, td:first-child { padding-left: 0; }
+th:last-child, td:last-child { padding-right: 0; }
+.num { text-align: right; font-family: var(--font-outlier); font-variant-numeric: tabular-nums; }
+.wrap { min-width: 12rem; max-width: 40ch; overflow-wrap: anywhere; }
+.nowrap { white-space: nowrap; }
+.muted { color: var(--color-muted); }
+.actions { text-align: right; }
+
+/* State: an ink outline, red only for failure, dashed while still in progress. */
+.badge {
+  display: inline-block;
+  padding: 0 var(--space-xs);
+  border: 1px solid var(--color-rule-2);
+  border-radius: 4px;
+  color: var(--color-ink-2);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.badge--completed, .badge--healthy, .badge--helpful { border-color: var(--color-ink-2); color: var(--color-ink); }
+.badge--queued, .badge--running, .badge--degraded { border-style: dashed; }
+.badge--failed, .badge--unhealthy, .badge--not-helpful { border-color: var(--color-error); color: var(--color-error); }
+
+@media (max-width: 48rem) {
+  .add-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }
+  .panel { padding: var(--space-md) var(--space-lg); }
+  .admin-shell { padding-inline: var(--space-md); }
+}

@@ -82,6 +82,36 @@ public class ChatUiTests : IDisposable
         Assert.DoesNotContain("document.write", js);
     }
 
+    [Theory]
+    [InlineData("/admin.html", "text/html")]
+    [InlineData("/admin.js", "text/javascript")]
+    [InlineData("/admin.css", "text/css")]
+    public async Task The_admin_page_is_served(string path, string mediaType)
+    {
+        var response = await _client.GetAsync(path, Ct);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(mediaType, response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("default-src 'self'", Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
+    }
+
+    [Fact]
+    public async Task The_admin_page_follows_the_same_csp_and_text_only_rules()
+    {
+        var html = await _client.GetStringAsync("/admin.html", Ct);
+        Assert.DoesNotMatch(@"<script(?![^>]*\bsrc=)", html);
+        Assert.DoesNotContain("<style", html);
+        Assert.DoesNotMatch(@"\sstyle=""", html);
+        Assert.DoesNotMatch(@"\son[a-z]+=""", html);
+        foreach (var id in new[] { "key-form", "upload-form", "crawl-form", "jobs", "docs", "feedback", "checks" })
+            Assert.Contains($"id=\"{id}\"", html);
+
+        var js = await _client.GetStringAsync("/admin.js", Ct);
+        Assert.DoesNotContain("innerHTML", js);
+        Assert.DoesNotContain("insertAdjacentHTML", js);
+        Assert.DoesNotContain("document.write", js);
+        Assert.Contains("X-Api-Key", js);
+    }
+
     [Fact]
     public async Task Api_routes_are_unaffected()
     {

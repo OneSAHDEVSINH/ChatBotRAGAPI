@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Knowledge Chat admin</title>
+  <meta name="description" content="Manage the documents Knowledge Chat answers from: upload files, crawl sites, follow ingestion jobs, read feedback.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="admin.css">
+  <script src="admin.js" defer></script>
+</head>
+<body class="desk">
+  <header class="topbar">
+    <div class="admin-shell topbar__inner">
+      <h1 class="wordmark">Knowledge Chat admin</h1>
+      <a class="btn btn--card btn--small" href="./">Back to chat</a>
+    </div>
+  </header>
+
+  <main class="admin-shell admin">
+    <section class="panel stock" aria-labelledby="key-title">
+      <h2 id="key-title">API key</h2>
+      <form id="key-form" class="row" autocomplete="off">
+        <label for="api-key" class="visually-hidden">API key</label>
+        <input id="api-key" type="password" class="field" placeholder="The value of Security:ApiKey" autocomplete="current-password">
+        <button type="submit" class="btn btn--card btn--small">Use key</button>
+        <button type="button" id="forget-key" class="btn btn--card btn--small">Forget</button>
+      </form>
+      <p class="hint">Kept for this browser tab only. Leave it empty if the server has no key set.</p>
+      <p id="key-status" class="message" role="status"></p>
+    </section>
+
+    <section class="panel stock" aria-labelledby="status-title">
+      <div class="panel__head">
+        <h2 id="status-title">Status</h2>
+        <button type="button" id="refresh-status" class="btn btn--card btn--small">Refresh</button>
+      </div>
+      <ul id="checks" class="checks"></ul>
+    </section>
+
+    <section class="panel stock" aria-labelledby="add-title">
+      <h2 id="add-title">Add documents</h2>
+      <div class="add-grid">
+        <form id="upload-form" class="stack">
+          <h3>Upload files</h3>
+          <label for="files">.txt, .csv, .docx, .xlsx or .pdf, up to 50 MB each. A file with the same name replaces the old one.</label>
+          <input id="files" type="file" class="field field--file" accept=".txt,.csv,.docx,.xlsx,.pdf" multiple required>
+          <button type="submit" class="btn btn--ink btn--small">Upload</button>
+        </form>
+        <form id="crawl-form" class="stack">
+          <h3>Crawl a website</h3>
+          <label for="crawl-url">Start page (a public http or https address)</label>
+          <input id="crawl-url" type="url" class="field" placeholder="https://example.com/" required>
+          <div class="row">
+            <label for="crawl-pages">Pages</label>
+            <input id="crawl-pages" type="number" class="field field--number" min="1" max="500" value="20" required>
+            <label class="check"><input id="crawl-remove" type="checkbox"> Remove pages that are gone</label>
+          </div>
+          <button type="submit" class="btn btn--ink btn--small">Start crawl</button>
+        </form>
+      </div>
+      <p id="add-status" class="message" role="status"></p>
+    </section>
+
+    <section class="panel stock" aria-labelledby="jobs-title">
+      <div class="panel__head">
+        <h2 id="jobs-title">Jobs</h2>
+        <button type="button" id="refresh-jobs" class="btn btn--card btn--small">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Source</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Message</th><th scope="col">Updated</th></tr></thead>
+          <tbody id="jobs"></tbody>
+        </table>
+      </div>
+      <p id="jobs-empty" class="empty-row" hidden>No jobs yet.</p>
+    </section>
+
+    <section class="panel stock" aria-labelledby="docs-title">
+      <div class="panel__head">
+        <h2 id="docs-title">Documents</h2>
+        <button type="button" id="refresh-docs" class="btn btn--card btn--small">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Source</th><th scope="col">Type</th><th scope="col" class="num">Chunks</th><th scope="col">Ingested</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+          <tbody id="docs"></tbody>
+        </table>
+      </div>
+      <p id="docs-empty" class="empty-row" hidden>No documents yet. Upload a file or crawl a site above.</p>
+      <p id="docs-status" class="message" role="status"></p>
+    </section>
+
+    <section class="panel stock" aria-labelledby="feedback-title">
+      <div class="panel__head">
+        <h2 id="feedback-title">Feedback</h2>
+        <div class="row">
+          <label for="feedback-filter" class="visually-hidden">Show</label>
+          <select id="feedback-filter" class="field field--select">
+            <option value="">All ratings</option>
+            <option value="down">Not helpful</option>
+            <option value="up">Helpful</option>
+          </select>
+          <button type="button" id="refresh-feedback" class="btn btn--card btn--small">Refresh</button>
+        </div>
+      </div>
+      <p id="feedback-totals" class="hint"></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">When</th><th scope="col">Rating</th><th scope="col">Question</th><th scope="col">Answer</th><th scope="col">Comment</th></tr></thead>
+          <tbody id="feedback"></tbody>
+        </table>
+      </div>
+      <p id="feedback-empty" class="empty-row" hidden>No ratings yet.</p>
+    </section>
+  </main>
+</body>
+</html>
