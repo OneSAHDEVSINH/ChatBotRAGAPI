@@ -17,6 +17,7 @@ public sealed class IngestionWorker : BackgroundService
     private readonly DocumentRegistry _registry;
     private readonly KeywordIndex _keywords;
     private readonly ChatActivity _chat;
+    private readonly Health.WorkerState _state;
     private readonly RagOptions _options;
     private readonly ILogger<IngestionWorker> _logger;
 
@@ -30,6 +31,7 @@ public sealed class IngestionWorker : BackgroundService
         DocumentRegistry registry,
         KeywordIndex keywords,
         ChatActivity chat,
+        Health.WorkerState state,
         IOptions<RagOptions> options,
         ILogger<IngestionWorker> logger)
     {
@@ -42,6 +44,7 @@ public sealed class IngestionWorker : BackgroundService
         _registry = registry;
         _keywords = keywords;
         _chat = chat;
+        _state = state;
         _options = options.Value;
         _logger = logger;
     }
@@ -52,6 +55,7 @@ public sealed class IngestionWorker : BackgroundService
         WarnAboutLegacyFiles();
         ClearInbox();
         await EnsureVectorStoreAsync(stoppingToken);
+        _state.StoreReady = true;
         if (_vectorStore.IsPersistent) await RebuildKeywordIndexAsync(stoppingToken);
         else EnqueueReindex();
 

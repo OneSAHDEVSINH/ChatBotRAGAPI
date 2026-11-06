@@ -9,6 +9,9 @@ public interface IVectorStore
 
     Task EnsureCollectionAsync(CancellationToken ct);
 
+    /// <summary>Throws when the store cannot serve requests right now (readiness check). In-process stores always can.</summary>
+    Task PingAsync(CancellationToken ct) => Task.CompletedTask;
+
     /// <summary>Inserts or replaces points by id (an existing id must be overwritten, not duplicated).</summary>
     Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct);
 

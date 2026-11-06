@@ -1,6 +1,8 @@
 ﻿using ChatBotRAGAPI.Security;
 using ChatBotRAGAPI.Services;
 using ChatBotRAGAPI.Services.Ai;
+using ChatBotRAGAPI.Services.Health;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using ChatBotRAGAPI.Settings;
 using ChatBotRAGAPI.Swagger;
 using Microsoft.Extensions.Options;
@@ -41,7 +43,17 @@ builder.Services.AddSwaggerGen(c =>
         [new OpenApiSecuritySchemeReference("ApiKey", document)] = []
     });
 });
-builder.Services.AddHealthChecks();
+// /health is liveness (the process answers); /health/ready checks what a request needs (see Services/Health).
+builder.Services.AddSingleton<WorkerState>();
+builder.Services.AddHttpClient(AiBackendHealthCheck.HttpClientName, client =>
+{
+    client.BaseAddress = new Uri(ragOptions.OllamaBaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+builder.Services.AddHealthChecks()
+    .AddCheck<VectorStoreHealthCheck>("vector-store", tags: ["ready"])
+    .AddCheck<AiBackendHealthCheck>("ai-backend", tags: ["ready"])
+    .AddCheck<IngestionWorkerHealthCheck>("ingestion-worker", tags: ["ready"]);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<BackendUnavailableHandler>();
 
@@ -137,7 +149,12 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseRateLimiter();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = HealthReportWriter.WriteAsync,
+});
 app.MapControllers();
 
 app.Run();

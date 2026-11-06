@@ -88,7 +88,8 @@ curl -X POST http://localhost:5170/api/chat/ask -H "Content-Type: application/js
 | `DELETE /api/documents?source=...` | Remove a document and all its chunks |
 | `POST /api/chat/ask` | Answer a question `{ "question": "...", "history": [...] }` |
 | `POST /api/chat/ask/stream` | Same, as Server-Sent Events: `sources`, `context`, `delta`..., `done` (or `error`) |
-| `GET /health` | Health check |
+| `GET /health` | Liveness: the process answers (for restarts) |
+| `GET /health/ready` | Readiness: vector store reachable, models pulled (Ollama), worker started; JSON per check, 503 when not ready |
 | `GET /` | Chat UI (`wwwroot/`) |
 
 - **Follow-ups**: the server keeps no conversation state. Send earlier turns as

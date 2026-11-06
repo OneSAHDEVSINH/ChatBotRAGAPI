@@ -13,6 +13,8 @@ public sealed class KeywordIndexingVectorStore(IVectorStore inner, KeywordIndex 
 
     public Task EnsureCollectionAsync(CancellationToken ct) => inner.EnsureCollectionAsync(ct);
 
+    public Task PingAsync(CancellationToken ct) => inner.PingAsync(ct);
+
     public async Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct)
     {
         await inner.UpsertAsync(points, ct);

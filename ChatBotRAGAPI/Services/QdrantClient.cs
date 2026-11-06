@@ -21,6 +21,14 @@ public sealed class QdrantClient : IVectorStore
 
     public bool IsPersistent => true;
 
+    /// <summary>The collection must exist and answer; a missing one is a failure (the worker creates it at startup).</summary>
+    public async Task PingAsync(CancellationToken ct)
+    {
+        using var response = await _httpClient.GetAsync($"/collections/{_options.QdrantCollection}", ct);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException($"Qdrant collection '{_options.QdrantCollection}' answered {(int)response.StatusCode}.", null, response.StatusCode);
+    }
+
     public async Task EnsureCollectionAsync(CancellationToken ct)
     {
         var collectionPath = $"/collections/{_options.QdrantCollection}";
