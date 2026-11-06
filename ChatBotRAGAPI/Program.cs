@@ -109,6 +109,7 @@ builder.Services.AddSingleton<FileTextExtractor>();
 builder.Services.AddSingleton<TextChunker>();
 builder.Services.AddSingleton<RagService>();
 builder.Services.AddSingleton<EvalService>();
+builder.Services.AddSingleton<FeedbackStore>();
 builder.Services.AddHostedService<IngestionWorker>();
 
 var app = builder.Build();

@@ -144,6 +144,76 @@ function renderSources(msg, sources, context) {
   });
 }
 
+// ---------- feedback ----------
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const THUMB = "M2 21h4V9H2v12zm20-11a2 2 0 0 0-2-2h-6.3l1-4.6v-.3c0-.4-.2-.8-.4-1.1L13.2 1 6.6 7.6C6.2 8 6 8.5 6 9v10a2 2 0 0 0 2 2h9c.8 0 1.5-.5 1.8-1.2l3-7.1c.1-.2.2-.5.2-.7v-2z";
+
+function thumbIcon() {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", THUMB);
+  svg.append(path);
+  return svg;
+}
+
+/** "Helpful" / "Not helpful" under a finished answer. The rating is kept with the turn, so a reload shows it. */
+function addFeedback(msg, turn) {
+  const bar = document.createElement("div");
+  bar.className = "feedback";
+  const label = document.createElement("span");
+  label.className = "feedback-label";
+  label.setAttribute("role", "status");
+
+  const buttons = [["up", "Helpful"], ["down", "Not helpful"]].map(([rating, text]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "feedback-btn";
+    button.dataset.rating = rating;
+    const caption = document.createElement("span");
+    caption.textContent = text;
+    button.append(thumbIcon(), caption);
+    button.addEventListener("click", () => sendFeedback(turn, rating, buttons, label, show));
+    return button;
+  });
+
+  const show = () => {
+    buttons.forEach((b) => {
+      b.setAttribute("aria-pressed", String(turn.rating === b.dataset.rating));
+      b.disabled = Boolean(turn.rating);
+    });
+    label.textContent = turn.rating ? "Thanks for the feedback." : "Was this answer helpful?";
+  };
+  show();
+  bar.append(label, ...buttons);
+  msg.querySelector(".bubble").append(bar);
+}
+
+async function sendFeedback(turn, rating, buttons, label, show) {
+  buttons.forEach((b) => { b.disabled = true; });
+  try {
+    const response = await fetch("api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question: turn.question,
+        answer: turn.answer,
+        rating,
+        sources: turn.sources.map((s) => s.source),
+      }),
+    });
+    if (!response.ok) throw new Error(await errorMessage(response));
+    turn.rating = rating;
+    save();
+    show();
+  } catch (err) {
+    buttons.forEach((b) => { b.disabled = false; });
+    label.textContent = "The feedback could not be sent. Try again.";
+  }
+}
+
 function renderTurn(turn) {
   addUserMessage(turn.question);
   const msg = addAssistantMessage();
@@ -151,6 +221,7 @@ function renderTurn(turn) {
   setStatus(msg, null);
   renderSources(msg, turn.sources, turn.context);
   renderAnswer(msg, turn.answer, turn.sources.length);
+  addFeedback(msg, turn);
 }
 
 function renderAll() {
@@ -273,8 +344,10 @@ async function ask(question) {
 
     if (!finished) throw new Error("The connection closed before the answer was complete.");
 
-    turns.push({ question, answer: text, sources, context });
+    const turn = { question, answer: text, sources, context };
+    turns.push(turn);
     save();
+    addFeedback(msg, turn);
   } catch (err) {
     setStatus(msg, null);
     if (err.name === "AbortError") {

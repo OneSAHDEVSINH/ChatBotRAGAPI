@@ -34,6 +34,21 @@ public sealed record AskResponse(string Answer, IReadOnlyList<string> Context, I
 public sealed record ContextSource(int Id, string Source, double? Score, string Match);
 
 public sealed record EnqueueResponse(Guid JobId, string Status);
+
+/// <param name="Question">The question as asked.</param>
+/// <param name="Answer">The answer the user rated, as shown.</param>
+/// <param name="Sources">The cited sources shown with it (file names or URLs).</param>
+/// <param name="Rating">"up" (helpful) or "down" (not helpful).</param>
+/// <param name="Comment">Optional: what was wrong or missing.</param>
+public sealed record FeedbackRequest(string Question, string Answer, string Rating, IReadOnlyList<string>? Sources = null, string? Comment = null);
+
+public sealed record FeedbackEntry(Guid Id, DateTimeOffset At, string Rating, string Question, string Answer,
+    IReadOnlyList<string> Sources, string? Comment);
+
+/// <param name="Up">Helpful ratings in the whole log.</param>
+/// <param name="Down">Not-helpful ratings in the whole log.</param>
+/// <param name="Entries">The most recent entries matching the filter, newest first.</param>
+public sealed record FeedbackList(int Up, int Down, IReadOnlyList<FeedbackEntry> Entries);
 public sealed record JobStatusResponse(Guid JobId, string Status, string? Message);
 
 /// <param name="SourceType">"file", "url" or "reindex" (rebuilding the in-memory store at startup).</param>

@@ -77,6 +77,9 @@ public sealed class RagOptions
     /// model's CPU with a crawl. Each wait is capped at ChatPriorityMaxWaitSeconds so ingestion still progresses.
     /// </summary>
     public bool PrioritizeChat { get; set; } = true;
+
+    /// <summary>Feedback log cap: once data/feedback.jsonl reaches this size, new ratings are refused (the endpoint is open to users).</summary>
+    public int FeedbackMaxFileMB { get; set; } = 20;
     public int ChatPriorityMaxWaitSeconds { get; set; } = 30;
 
     /// <summary>Largest maxPages a scrape request may ask for (crawling a site from the given page).</summary>
