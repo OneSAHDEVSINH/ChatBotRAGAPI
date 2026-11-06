@@ -1,11 +1,41 @@
+# Everything: docker compose -f ChatBotRAGAPI/docker-compose.yml up -d --build
+# Only the backends for local development: docker compose -f ChatBotRAGAPI/docker-compose.yml up -d qdrant ollama
+#
+# API_KEY is required (it protects ingestion and document management). Pull the models once:
+#   docker compose -f ChatBotRAGAPI/docker-compose.yml exec ollama ollama pull nomic-embed-text
+#   docker compose -f ChatBotRAGAPI/docker-compose.yml exec ollama ollama pull qwen3:8b
+# then open http://localhost:8080/ and check http://localhost:8080/health/ready.
+
 services:
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: chatbotragapi
+    ports:
+      - "8080:8080"
+    environment:
+      Security__ApiKey: ${API_KEY:?Set API_KEY to the key that protects ingestion and documents}
+      Rag__UseInMemoryVectorStore: "false"
+      Rag__QdrantBaseUrl: http://qdrant:6333
+      Rag__OllamaBaseUrl: http://ollama:11434
+      Rag__EmbeddingModel: ${EMBEDDING_MODEL:-nomic-embed-text}
+      Rag__ChatModel: ${CHAT_MODEL:-qwen3:8b}
+    volumes:
+      - api_data:/app/data
+    depends_on:
+      - qdrant
+      - ollama
+    restart: unless-stopped
+
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.13.4
     container_name: qdrant
     ports:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
+    restart: unless-stopped
 
   ollama:
     image: ollama/ollama:latest
@@ -14,7 +44,9 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    restart: unless-stopped
 
 volumes:
+  api_data:
   qdrant_data:
   ollama_data:

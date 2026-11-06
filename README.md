@@ -53,7 +53,10 @@ Rag__OpenAI__Endpoint=https://<resource>.openai.azure.com/openai/v1/  Rag__OpenA
 ```
 
 **Qdrant** (optional, persistent vectors): `docker compose -f ChatBotRAGAPI/docker-compose.yml up -d qdrant` and set
-`Rag__UseInMemoryVectorStore=false`. Without it an in-memory store is used and rebuilt from stored documents at startup.
+`Rag__UseInMemoryVectorStore=false`.
+
+**Deploying** (Docker Compose with Qdrant and Ollama, IIS, or Azure App Service): see [docs/deployment.md](docs/deployment.md).
+`API_KEY=... docker compose -f ChatBotRAGAPI/docker-compose.yml up -d --build` runs everything on port 8080. Without it an in-memory store is used and rebuilt from stored documents at startup.
 
 ## Using the API
 

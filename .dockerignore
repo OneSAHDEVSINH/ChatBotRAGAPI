@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+**/*.user
+.git/
+.github/
+.vs/
+.vscode/
+.hallmark/
+.impeccable/
+.playwright-mcp/
+TestResults/
+docs/
+ChatBotRAGAPI.Tests/
+ChatBotRAGAPI/data/
+ChatBotRAGAPI/wwwroot/.hallmark/
+ChatBotRAGAPI/testdata/
+ChatBotRAGAPI/*.log

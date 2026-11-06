@@ -33,6 +33,23 @@ jobs:
           REQUIRE_DOCKER: "true"
         run: dotnet test --solution ChatBotRAGAPI.slnx --no-build --configuration Release --report-xunit-trx --results-directory TestResults
 
+      # The image must build, start as its non-root user and report ready (local AI fallback: no models needed).
+      - name: Docker image builds and starts
+        run: |
+          docker build -t chatbotragapi:ci .
+          docker run -d --name api -p 8080:8080 -e Rag__UseLocalAiFallback=true chatbotragapi:ci
+          for i in $(seq 1 30); do curl -fsS http://localhost:8080/health/ready && break; sleep 2; done
+          curl -fsS http://localhost:8080/health/ready | grep -q '"status": "Healthy"'
+          curl -fsS -o /dev/null http://localhost:8080/
+          docker exec api sh -c 'test "$(id -u)" != "0" && test -f /app/data/jobs.json'
+
+      - name: Container logs
+        if: failure()
+        run: docker logs api || true
+
+      - name: Compose file is valid
+        run: API_KEY=ci docker compose -f ChatBotRAGAPI/docker-compose.yml config --quiet
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
