@@ -50,6 +50,7 @@ public sealed class IngestionWorker : BackgroundService
     {
         Directory.CreateDirectory(_options.DataDirectory);
         WarnAboutLegacyFiles();
+        ClearInbox();
         await EnsureVectorStoreAsync(stoppingToken);
         if (_vectorStore.IsPersistent) await RebuildKeywordIndexAsync(stoppingToken);
         else EnqueueReindex();
@@ -237,6 +238,20 @@ public sealed class IngestionWorker : BackgroundService
 
         if (documents.Count > 0)
             _logger.LogInformation("Re-indexing {Count} stored document(s)", documents.Count);
+    }
+
+    /// <summary>
+    /// Uploads wait in the inbox only until their job runs. At startup the queue is empty, so anything still there
+    /// belonged to a job a restart interrupted (now reported as Failed) and will never be processed.
+    /// </summary>
+    private void ClearInbox()
+    {
+        var inbox = Path.Combine(_options.DataDirectory, "inbox");
+        if (!Directory.Exists(inbox)) return;
+        var stranded = Directory.GetFiles(inbox);
+        foreach (var file in stranded) DeleteUpload(file);
+        if (stranded.Length > 0)
+            _logger.LogWarning("Removed {Count} upload(s) left in the inbox by jobs a restart interrupted", stranded.Length);
     }
 
     /// <summary>

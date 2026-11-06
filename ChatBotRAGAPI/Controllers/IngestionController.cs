@@ -99,8 +99,17 @@ public sealed class IngestionController : ControllerBase
         return Accepted(new EnqueueResponse(jobId, "Queued"));
     }
 
+    /// <summary>Recent ingestion jobs, newest first: uploads, crawls and startup re-indexing.</summary>
+    /// <remarks>Statuses survive restarts; a job interrupted by one is reported as Failed. Finished jobs are kept for Rag:JobStatusRetentionMinutes.</remarks>
+    /// <response code="200">Up to 100 jobs.</response>
+    /// <response code="401">Missing or wrong X-Api-Key (when Security:ApiKey is set).</response>
+    [HttpGet("jobs")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public ActionResult<IReadOnlyList<JobInfo>> Jobs() => Ok(_queue.List());
+
     /// <summary>Status of an ingestion job: Queued, Running, Completed or Failed (with a message).</summary>
-    /// <remarks>Statuses are kept in memory: they are gone after a restart and expire an hour after the job finishes.</remarks>
+    /// <remarks>Statuses survive restarts (a job interrupted by one reads Failed) and expire an hour after the job finishes.</remarks>
     /// <response code="200">The job's status.</response>
     /// <response code="401">Missing or wrong X-Api-Key (when Security:ApiKey is set).</response>
     /// <response code="404">Unknown or expired job id.</response>

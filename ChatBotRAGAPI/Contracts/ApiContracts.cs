@@ -36,6 +36,13 @@ public sealed record ContextSource(int Id, string Source, double? Score, string 
 public sealed record EnqueueResponse(Guid JobId, string Status);
 public sealed record JobStatusResponse(Guid JobId, string Status, string? Message);
 
+/// <param name="SourceType">"file", "url" or "reindex" (rebuilding the in-memory store at startup).</param>
+/// <param name="Source">The file name or URL being ingested.</param>
+/// <param name="Status">Queued, Running, Completed or Failed.</param>
+/// <param name="Message">Progress, the crawl summary, or why it failed.</param>
+public sealed record JobInfo(Guid JobId, string SourceType, string Source, string Status, string? Message,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
 /// <param name="SourceValue">What the worker reads: a URL, or the saved upload path.</param>
 /// <param name="SourceName">Human-readable origin stored with each chunk: the URL or the original file name.</param>
 /// <param name="MaxPages">For "url" jobs: pages to crawl starting from SourceValue (1 = that page only).</param>

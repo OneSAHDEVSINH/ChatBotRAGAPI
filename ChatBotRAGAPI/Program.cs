@@ -90,6 +90,7 @@ else
 
 builder.Services.AddTransient<WebCrawler>();
 builder.Services.AddSingleton<ChatActivity>();
+builder.Services.AddSingleton<JobStore>();
 builder.Services.AddSingleton<IngestionQueue>();
 builder.Services.AddSingleton<DocumentRegistry>();
 builder.Services.AddSingleton<FileTextExtractor>();

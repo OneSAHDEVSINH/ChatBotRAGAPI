@@ -83,6 +83,7 @@ curl -X POST http://localhost:5170/api/chat/ask -H "Content-Type: application/js
 | `POST /api/ingestion/upload` | Upload a file (multipart field `file`) |
 | `POST /api/ingestion/scrape` | Ingest a public web page `{ "url": "..." }`, or crawl the site from it with `"maxPages": n` |
 | `GET /api/ingestion/{jobId}` | Ingestion job status |
+| `GET /api/ingestion/jobs` | Recent ingestion jobs (statuses survive restarts; interrupted jobs read Failed) |
 | `GET /api/documents` | List ingested documents (source, type, chunk count, time) |
 | `DELETE /api/documents?source=...` | Remove a document and all its chunks |
 | `POST /api/chat/ask` | Answer a question `{ "question": "...", "history": [...] }` |
