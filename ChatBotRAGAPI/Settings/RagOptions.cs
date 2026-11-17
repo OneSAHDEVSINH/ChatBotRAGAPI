@@ -80,6 +80,12 @@ public sealed class RagOptions
 
     /// <summary>Feedback log cap: once data/feedback.jsonl reaches this size, new ratings are refused (the endpoint is open to users).</summary>
     public int FeedbackMaxFileMB { get; set; } = 20;
+
+    /// <summary>Cap on usage.jsonl (one short line per chat question); past it no more questions are logged.</summary>
+    public int UsageMaxFileMB { get; set; } = 50;
+
+    /// <summary>Keep the text of each question in the usage log (for the admin page's unanswered list). Off = counts only.</summary>
+    public bool UsageStoreQuestions { get; set; } = true;
     public int ChatPriorityMaxWaitSeconds { get; set; } = 30;
 
     /// <summary>Largest maxPages a scrape request may ask for (crawling a site from the given page).</summary>

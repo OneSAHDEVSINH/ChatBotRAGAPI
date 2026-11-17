@@ -38,6 +38,57 @@
       <ul id="checks" class="checks"></ul>
     </section>
 
+    <section class="panel stock" aria-labelledby="usage-title">
+      <div class="panel__head">
+        <h2 id="usage-title">Usage</h2>
+        <div class="row">
+          <label for="usage-days" class="visually-hidden">Period</label>
+          <select id="usage-days" class="field field--select">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+          <button type="button" id="refresh-usage" class="btn btn--card btn--small">Refresh</button>
+        </div>
+      </div>
+      <dl id="usage-kpis" class="kpis"></dl>
+      <figure class="chart">
+        <figcaption class="chart__head">
+          <span class="chart__title">Questions per day</span>
+          <ul class="legend">
+            <li><span class="swatch swatch--answered"></span>Answered</li>
+            <li><span class="swatch swatch--nodata"></span>Not answered</li>
+            <li><span class="swatch swatch--error"></span>Error</li>
+          </ul>
+        </figcaption>
+        <div class="chart__body">
+          <div class="chart__axis" aria-hidden="true"><span id="usage-max"></span><span id="usage-mid"></span><span>0</span></div>
+          <div id="usage-chart" class="chart__plot" role="img"></div>
+        </div>
+        <div class="chart__dates" aria-hidden="true"><span id="usage-from"></span><span id="usage-to"></span></div>
+        <div id="usage-tip" class="chart__tip" role="status" hidden></div>
+      </figure>
+      <details class="chart__table">
+        <summary>Daily numbers</summary>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">Day</th><th scope="col" class="num">Questions</th><th scope="col" class="num">Answered</th><th scope="col" class="num">Not answered</th><th scope="col" class="num">Errors</th><th scope="col" class="num">Helpful</th><th scope="col" class="num">Not helpful</th></tr></thead>
+            <tbody id="usage-days-table"></tbody>
+          </table>
+        </div>
+      </details>
+      <h3>Questions it couldn’t answer</h3>
+      <p class="hint">The most asked questions that got “I don’t have enough data.”: content worth adding.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Question</th><th scope="col" class="num">Times</th><th scope="col">Last asked</th></tr></thead>
+          <tbody id="usage-unanswered"></tbody>
+        </table>
+      </div>
+      <p id="usage-unanswered-empty" class="empty-row" hidden>None in this period.</p>
+      <p id="usage-status" class="message" role="status"></p>
+    </section>
+
     <section class="panel stock" aria-labelledby="add-title">
       <h2 id="add-title">Add documents</h2>
       <div class="add-grid">

@@ -113,6 +113,7 @@ builder.Services.AddSingleton<TextChunker>();
 builder.Services.AddSingleton<RagService>();
 builder.Services.AddSingleton<EvalService>();
 builder.Services.AddSingleton<FeedbackStore>();
+builder.Services.AddSingleton<UsageLog>();
 builder.Services.AddHostedService<IngestionWorker>();
 builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<CrawlScheduler>();

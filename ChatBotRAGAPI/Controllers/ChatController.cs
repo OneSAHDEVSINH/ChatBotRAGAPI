@@ -1,6 +1,7 @@
 ﻿using ChatBotRAGAPI.Contracts;
 using ChatBotRAGAPI.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics;
 using System.Net.ServerSentEvents;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -15,14 +16,18 @@ public sealed class ChatController : ControllerBase
 
     private readonly RagService _ragService;
     private readonly ChatActivity _activity;
+    private readonly UsageLog _usage;
     private readonly ILogger<ChatController> _logger;
 
-    public ChatController(RagService ragService, ChatActivity activity, ILogger<ChatController> logger)
+    public ChatController(RagService ragService, ChatActivity activity, UsageLog usage, ILogger<ChatController> logger)
     {
         _ragService = ragService;
         _activity = activity;
+        _usage = usage;
         _logger = logger;
     }
+
+    private static bool IsFollowUp(AskRequest request) => request.History?.Any(m => m.Role == "user") == true;
 
     /// <summary>
     /// Ingestion yields to chat while this request runs. Released when the response completes, so a streamed
@@ -49,7 +54,19 @@ public sealed class ChatController : ControllerBase
         if (Validate(request) is { } error) return BadRequest(error);
         MarkChatActive();
 
-        var result = await _ragService.AskAsync(request.Question, request.History, ct);
+        var watch = Stopwatch.StartNew();
+        AskResponse result;
+        try
+        {
+            result = await _ragService.AskAsync(request.Question, request.History, ct);
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            _usage.Record(request.Question, UsageLog.Error, 0, watch.Elapsed, IsFollowUp(request));
+            throw;
+        }
+
+        _usage.Record(request.Question, UsageLog.OutcomeOf(result.Answer), result.Sources.Count, watch.Elapsed, IsFollowUp(request));
         return Ok(result);
     }
 
@@ -73,12 +90,22 @@ public sealed class ChatController : ControllerBase
         if (Validate(request) is { } error) return Results.BadRequest(error);
         MarkChatActive();
 
-        var answer = await _ragService.AskStreamingAsync(request.Question, request.History, ct);
-        return TypedResults.ServerSentEvents(Events(answer, ct));
+        var watch = Stopwatch.StartNew();
+        RagService.StreamingAnswer answer;
+        try
+        {
+            answer = await _ragService.AskStreamingAsync(request.Question, request.History, ct);
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            _usage.Record(request.Question, UsageLog.Error, 0, watch.Elapsed, IsFollowUp(request));
+            throw;
+        }
+        return TypedResults.ServerSentEvents(Events(answer, request, watch, ct));
     }
 
     private async IAsyncEnumerable<SseItem<object>> Events(
-        RagService.StreamingAnswer answer, [EnumeratorCancellation] CancellationToken ct)
+        RagService.StreamingAnswer answer, AskRequest request, Stopwatch watch, [EnumeratorCancellation] CancellationToken ct)
     {
         yield return new SseItem<object>(answer.Sources, "sources");
         yield return new SseItem<object>(answer.Context, "context"); // passage texts, same order as sources
@@ -102,6 +129,7 @@ public sealed class ChatController : ControllerBase
 
             if (failure is not null)
             {
+                _usage.Record(request.Question, UsageLog.Error, answer.Sources.Count, watch.Elapsed, IsFollowUp(request));
                 yield return new SseItem<object>(new StreamError(failure), "error");
                 yield break;
             }
@@ -110,7 +138,9 @@ public sealed class ChatController : ControllerBase
             yield return new SseItem<object>(new StreamDelta(pieces.Current), "delta");
         }
 
-        yield return new SseItem<object>(new StreamDone(full.ToString().Trim()), "done");
+        var text = full.ToString().Trim();
+        _usage.Record(request.Question, UsageLog.OutcomeOf(text), answer.Sources.Count, watch.Elapsed, IsFollowUp(request));
+        yield return new SseItem<object>(new StreamDone(text), "done");
     }
 
     private static string? Validate(AskRequest request)

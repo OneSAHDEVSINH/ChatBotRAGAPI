@@ -9,7 +9,7 @@ then ask questions that are answered **only** from that content, with numbered c
 - **Streaming** answers over Server-Sent Events, and **follow-up questions** via conversation history
 - **Documents** are tracked by source: re-ingesting replaces, deleting removes every chunk, and the index survives restarts; embeddings are cached on disk, so restarts and unchanged re-ingests don't re-embed
 - **Chat widget for any website**: one script tag adds an "Ask us" button that opens the chat in a panel (see below)
-- **Admin page** at `/admin.html`: upload files, crawl sites, schedule re-crawls, follow jobs, delete documents, read feedback (API key)
+- **Admin page** at `/admin.html`: usage (questions per day, answered vs not, ratings, answer time, the questions it couldn't answer), upload files, crawl sites, schedule re-crawls, follow jobs, delete documents, read feedback (API key)
 - **Chat UI** at `/`: streaming answers, clickable citations that show the passage, follow-up questions, helpful / not helpful ratings
 - Runs fully local with [Ollama](https://ollama.com); a no-LLM fallback mode needs nothing else at all
 
@@ -95,6 +95,7 @@ curl -X POST http://localhost:5170/api/chat/ask -H "Content-Type: application/js
 | `POST /api/chat/ask/stream` | Same, as Server-Sent Events: `sources`, `context`, `delta`..., `done` (or `error`) |
 | `POST /api/feedback` | Rate an answer `{ question, answer, rating: "up"\|"down", sources?, comment? }` (open, like chat) |
 | `GET /api/feedback?rating=down` | Recent ratings with up/down totals (API key) |
+| `GET /api/usage?days=30` | Usage report: questions per day by outcome, ratings, average answer time, top unanswered questions (API key) |
 | `GET/POST /api/schedules`, `DELETE /api/schedules/{id}`, `POST /api/schedules/{id}/run` | Scheduled re-crawls `{ url, maxPages, removeMissing, intervalHours }` (API key) |
 | `POST /api/eval/calibrate` | Suggest `MinScore` for the current embedding model from known questions (no generation) |
 | `POST /api/eval/answers` | Ask each known question for real; score retrieval, facts, citations and refusals |
@@ -164,6 +165,7 @@ All under `Rag` in `ChatBotRAGAPI/appsettings.json` (override with env vars such
 | `ChunkSize` / `ChunkOverlap` | 700 / 80 | Characters; chunks split on paragraph → line → sentence → word |
 | `HybridSearch` | true | Add BM25 keyword search to vector search |
 | `MaxHistoryMessages` | 6 | Conversation turns used for follow-ups |
+| `UsageStoreQuestions` | true | Keep question text in `usage.jsonl` (for the unanswered list); false = counts only |
 | `RewriteFollowUps` | true | Rewrite a follow-up ("what does it cost?") into a standalone question before searching; one short extra model call per follow-up |
 | `DisableThinking` | true | Stops reasoning models (qwen3, deepseek-r1) spending the token budget on hidden thinking |
 | `OcrModel` | empty (off) | Ollama vision model that reads scanned PDF pages; `OcrMaxTokens` (2048) caps one page |

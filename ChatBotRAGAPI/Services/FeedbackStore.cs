@@ -42,6 +42,15 @@ public sealed class FeedbackStore
     /// <param name="rating">"up", "down", or null for both.</param>
     public FeedbackList List(string? rating, int limit)
     {
+        var all = All();
+        var entries = all.Where(e => rating is null || e.Rating == rating)
+            .OrderByDescending(e => e.At).Take(Math.Clamp(limit, 1, 500)).ToList();
+        return new FeedbackList(all.Count(e => e.Rating == "up"), all.Count(e => e.Rating == "down"), entries);
+    }
+
+    /// <summary>Every stored rating, in file order.</summary>
+    public List<FeedbackEntry> All()
+    {
         string[] lines;
         lock (_sync) lines = File.Exists(_path) ? File.ReadAllLines(_path) : [];
 
@@ -52,9 +61,6 @@ public sealed class FeedbackStore
             try { if (JsonSerializer.Deserialize<FeedbackEntry>(line, Json) is { } e) all.Add(e); }
             catch (JsonException) { /* a torn last line from a crash: skip it */ }
         }
-
-        var entries = all.Where(e => rating is null || e.Rating == rating)
-            .OrderByDescending(e => e.At).Take(Math.Clamp(limit, 1, 500)).ToList();
-        return new FeedbackList(all.Count(e => e.Rating == "up"), all.Count(e => e.Rating == "down"), entries);
+        return all;
     }
 }

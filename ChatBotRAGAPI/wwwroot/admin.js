@@ -293,6 +293,130 @@ async function deleteSchedule(schedule, button) {
   }
 }
 
+// ---------- usage ----------
+
+const SERIES = [["answered", "Answered"], ["nodata", "Not answered"], ["error", "Error"]];
+const dayFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+const dayLabel = (date) => dayFormat.format(new Date(`${date}T00:00:00Z`));
+const percent = (part, whole) => (whole ? `${Math.round((part / whole) * 100)}%` : "–");
+
+function kpi(label, value, note) {
+  const wrap = document.createElement("div");
+  wrap.className = "kpi";
+  const dt = document.createElement("dt");
+  dt.textContent = label;
+  const dd = document.createElement("dd");
+  dd.textContent = value;
+  if (note) {
+    const small = document.createElement("small");
+    small.textContent = note;
+    dd.append(small);
+  }
+  wrap.append(dt, dd);
+  return wrap;
+}
+
+/** A round axis top: 1, 2, 5 × 10^n at or above the busiest day, so the mid line is a whole number too. */
+function niceMax(value) {
+  if (value <= 2) return 2;
+  const step = 10 ** Math.floor(Math.log10(value));
+  return [1, 2, 5, 10].map((m) => m * step).find((n) => n >= value && n % 2 === 0) ?? 10 * step;
+}
+
+function showTip(bar, day) {
+  const tip = $("usage-tip");
+  const title = document.createElement("strong");
+  title.textContent = `${dayLabel(day.date)}: ${day.questions} question${day.questions === 1 ? "" : "s"}`;
+  const rows = [["Answered", day.answered], ["Not answered", day.noData + day.declined], ["Error", day.errors],
+    ["Helpful / not", `${day.helpful} / ${day.notHelpful}`]].map(([label, value]) => {
+    const row = document.createElement("span");
+    const name = document.createElement("span");
+    name.textContent = label;
+    const num = document.createElement("span");
+    num.textContent = String(value);
+    row.append(name, num);
+    return row;
+  });
+  tip.replaceChildren(title, ...rows);
+  tip.hidden = false;
+
+  // Beside the day (right of it, or left near the end), level with the top of the plot, so it never hides the bar.
+  const figure = tip.parentElement.getBoundingClientRect();
+  const box = bar.getBoundingClientRect();
+  const gap = 8;
+  let left = box.right - figure.left + gap;
+  if (left + tip.offsetWidth > figure.width) left = Math.max(0, box.left - figure.left - gap - tip.offsetWidth);
+  tip.style.left = `${left}px`;
+  tip.style.top = `${box.top - figure.top}px`;
+}
+
+function hideTip() {
+  $("usage-tip").hidden = true;
+  document.querySelectorAll(".bar.is-active").forEach((b) => b.classList.remove("is-active"));
+}
+
+function drawChart(days) {
+  const top = niceMax(Math.max(0, ...days.map((d) => d.questions)));
+  $("usage-max").textContent = String(top);
+  $("usage-mid").textContent = String(top / 2);
+  $("usage-from").textContent = dayLabel(days[0].date);
+  $("usage-to").textContent = dayLabel(days[days.length - 1].date);
+
+  const total = days.reduce((n, d) => n + d.questions, 0);
+  $("usage-chart").setAttribute("aria-label",
+    `Questions per day, ${dayLabel(days[0].date)} to ${dayLabel(days[days.length - 1].date)}: ${total} in total. The daily numbers are in the table below.`);
+
+  $("usage-chart").replaceChildren(...days.map((day) => {
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    const values = { answered: day.answered, nodata: day.noData + day.declined, error: day.errors };
+    for (const [key] of SERIES) {
+      if (!values[key]) continue;
+      const seg = document.createElement("div");
+      seg.className = `bar__seg bar__seg--${key}`;
+      // Each segment's share of the plot height; the 2px gaps come out of the empty space above.
+      seg.style.height = `${(values[key] / top) * 100}%`;
+      bar.append(seg);
+    }
+    bar.addEventListener("pointerenter", () => { hideTip(); bar.classList.add("is-active"); showTip(bar, day); });
+    bar.addEventListener("pointerleave", hideTip);
+    return bar;
+  }));
+}
+
+async function loadUsage() {
+  try {
+    const report = await api(`api/usage?days=${$("usage-days").value}`);
+    const notAnswered = report.noData + report.declined;
+    $("usage-kpis").replaceChildren(
+      kpi("Questions", String(report.questions)),
+      kpi("Answered", String(report.answered), percent(report.answered, report.questions)),
+      kpi("Not answered", String(notAnswered), percent(notAnswered, report.questions)),
+      kpi("Errors", String(report.errors)),
+      kpi("Helpful / not", `${report.helpful} / ${report.notHelpful}`),
+      kpi("Avg. answer time", report.averageSeconds == null ? "–" : `${report.averageSeconds} s`));
+
+    drawChart(report.days);
+
+    $("usage-days-table").replaceChildren(...[...report.days].reverse().map((d) => {
+      const tr = document.createElement("tr");
+      tr.append(cell(dayLabel(d.date), "nowrap"), ...[d.questions, d.answered, d.noData + d.declined, d.errors, d.helpful, d.notHelpful]
+        .map((n) => cell(String(n), "num")));
+      return tr;
+    }));
+
+    $("usage-unanswered").replaceChildren(...report.unanswered.map((q) => {
+      const tr = document.createElement("tr");
+      tr.append(cell(q.question, "wrap"), cell(String(q.count), "num"), cell(when(q.lastAskedAt), "nowrap"));
+      return tr;
+    }));
+    $("usage-unanswered-empty").hidden = report.unanswered.length > 0;
+    clearError("usage-status");
+  } catch (err) {
+    handle(err, "usage-status");
+  }
+}
+
 // ---------- feedback ----------
 
 async function loadFeedback() {
@@ -318,8 +442,9 @@ async function loadFeedback() {
 // ---------- key ----------
 
 function loadAll() {
-  ["add-status", "docs-status", "schedules-status"].forEach(clearError);
+  ["add-status", "docs-status", "schedules-status", "usage-status"].forEach(clearError);
   loadStatus();
+  loadUsage();
   loadSchedules();
   loadJobs();
   loadDocuments();
@@ -346,6 +471,8 @@ $("refresh-jobs").addEventListener("click", loadJobs);
 $("refresh-schedules").addEventListener("click", loadSchedules);
 $("refresh-docs").addEventListener("click", loadDocuments);
 $("refresh-feedback").addEventListener("click", loadFeedback);
+$("refresh-usage").addEventListener("click", loadUsage);
+$("usage-days").addEventListener("change", loadUsage);
 $("feedback-filter").addEventListener("change", loadFeedback);
 
 if (apiKey) say("key-status", "Key in use for this tab.", "ok");

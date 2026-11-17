@@ -102,7 +102,7 @@ public class ChatUiTests : IDisposable
         Assert.DoesNotContain("<style", html);
         Assert.DoesNotMatch(@"\sstyle=""", html);
         Assert.DoesNotMatch(@"\son[a-z]+=""", html);
-        foreach (var id in new[] { "key-form", "upload-form", "crawl-form", "schedule-form", "schedules", "jobs", "docs", "feedback", "checks" })
+        foreach (var id in new[] { "key-form", "usage-kpis", "usage-chart", "usage-unanswered", "upload-form", "crawl-form", "schedule-form", "schedules", "jobs", "docs", "feedback", "checks" })
             Assert.Contains($"id=\"{id}\"", html);
 
         var js = await _client.GetStringAsync("/admin.js", Ct);
