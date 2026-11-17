@@ -118,6 +118,16 @@ public sealed class CrawlScheduler
         return jobId;
     }
 
+    /// <summary>Reads schedules.json again (after a restore replaced it).</summary>
+    public void Reload()
+    {
+        lock (_sync)
+        {
+            _schedules.Clear();
+            _schedules.AddRange(Load());
+        }
+    }
+
     private CrawlScheduleInfo Describe(CrawlSchedule s)
     {
         var (status, message) = s.LastJobId is { } id ? _queue.GetStatus(id) : ("", null);

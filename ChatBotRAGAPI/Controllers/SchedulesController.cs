@@ -33,6 +33,7 @@ public sealed class SchedulesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public ActionResult<CrawlScheduleInfo> Create([FromBody] CrawlScheduleRequest request)
     {
+        HttpContext.Items[AuditLog.TargetItem] = request.Url;
         var (schedule, error) = _scheduler.Add(request);
         return error is not null ? BadRequest(error) : StatusCode(StatusCodes.Status201Created, schedule);
     }

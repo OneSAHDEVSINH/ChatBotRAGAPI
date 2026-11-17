@@ -81,6 +81,9 @@ public sealed class RagOptions
     /// <summary>Feedback log cap: once data/feedback.jsonl reaches this size, new ratings are refused (the endpoint is open to users).</summary>
     public int FeedbackMaxFileMB { get; set; } = 20;
 
+    /// <summary>audit.jsonl size at which it is moved to audit.1.jsonl (replacing the older one) and a new file starts.</summary>
+    public int AuditMaxFileMB { get; set; } = 20;
+
     /// <summary>Cap on usage.jsonl (one short line per chat question); past it no more questions are logged.</summary>
     public int UsageMaxFileMB { get; set; } = 50;
 

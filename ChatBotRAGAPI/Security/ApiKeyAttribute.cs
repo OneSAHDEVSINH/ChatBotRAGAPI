@@ -22,8 +22,12 @@ public sealed class ApiKeyAttribute : Attribute, IAuthorizationFilter
         if (string.IsNullOrEmpty(expected)) return;
 
         var provided = context.HttpContext.Request.Headers[HeaderName].ToString();
-        if (!Matches(provided, expected))
-            context.Result = new UnauthorizedObjectResult($"A valid {HeaderName} header is required.");
+        if (Matches(provided, expected)) return;
+
+        context.Result = new UnauthorizedObjectResult($"A valid {HeaderName} header is required.");
+        var http = context.HttpContext;
+        http.RequestServices.GetRequiredService<Services.AuditLog>().Record(http, "auth.rejected",
+            $"{http.Request.Method} {http.Request.Path}{(provided.Length == 0 ? " (no key)" : " (wrong key)")}", StatusCodes.Status401Unauthorized);
     }
 
     /// <summary>Constant-time comparison, so response timing doesn't reveal how much of the key was right.</summary>

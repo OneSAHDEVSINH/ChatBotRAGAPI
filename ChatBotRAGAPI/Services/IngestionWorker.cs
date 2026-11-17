@@ -195,7 +195,8 @@ public sealed class IngestionWorker : BackgroundService
         }
     }
 
-    private const string ReindexSourceType = "reindex";
+    /// <summary>A job that re-chunks a registered document's stored text (startup with the in-memory store, restore).</summary>
+    public const string ReindexSourceType = "reindex";
 
     /// <summary>
     /// A persistent store (Qdrant) keeps its vectors across restarts, but the in-memory keyword index does not.

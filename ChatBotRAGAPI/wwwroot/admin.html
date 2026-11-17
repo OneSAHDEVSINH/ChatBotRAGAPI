@@ -195,6 +195,41 @@
       </div>
       <p id="feedback-empty" class="empty-row" hidden>No ratings yet.</p>
     </section>
+
+    <section class="panel stock" aria-labelledby="backup-title">
+      <h2 id="backup-title">Backup</h2>
+      <div class="add-grid">
+        <div class="stack">
+          <h3>Download</h3>
+          <p class="hint">Every document (texts and cached embeddings), the schedules, ratings, usage and activity, in one .zip.</p>
+          <button type="button" id="backup-download" class="btn btn--ink btn--small">Download backup</button>
+        </div>
+        <form id="restore-form" class="stack">
+          <h3>Restore</h3>
+          <p class="hint">Replaces all documents, schedules, ratings and usage with the backup’s, then re-indexes every document. The activity log is kept.</p>
+          <label for="restore-file">Backup file</label>
+          <input id="restore-file" type="file" class="field field--file" accept=".zip,application/zip" required>
+          <button type="submit" class="btn btn--danger btn--small">Restore</button>
+        </form>
+      </div>
+      <p id="backup-status" class="message" role="status"></p>
+    </section>
+
+    <section class="panel stock" aria-labelledby="audit-title">
+      <div class="panel__head">
+        <h2 id="audit-title">Activity</h2>
+        <button type="button" id="refresh-audit" class="btn btn--card btn--small">Refresh</button>
+      </div>
+      <p class="hint">Changes made through this page or the API, and rejected API keys.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Action</th><th scope="col">On</th><th scope="col" class="num">Result</th></tr></thead>
+          <tbody id="audit"></tbody>
+        </table>
+      </div>
+      <p id="audit-empty" class="empty-row" hidden>No activity yet.</p>
+      <p id="audit-status" class="message" role="status"></p>
+    </section>
   </main>
 </body>
 </html>

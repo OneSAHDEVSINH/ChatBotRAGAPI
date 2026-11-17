@@ -57,6 +57,9 @@ public sealed class IngestionQueue
     public void MarkCompleted(Guid jobId, string? summary = null) => Set(jobId, "Completed", summary);
     public void MarkFailed(Guid jobId, string message) => Set(jobId, "Failed", message);
 
+    /// <summary>True while any job is Queued or Running.</summary>
+    public bool HasActiveJobs => _status.Values.Any(j => j.Status is "Queued" or "Running");
+
     public (string Status, string? Message) GetStatus(Guid jobId) =>
         _status.TryGetValue(jobId, out var s) ? (s.Status, s.Message) : ("NotFound", null);
 

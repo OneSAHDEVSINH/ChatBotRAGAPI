@@ -417,6 +417,76 @@ async function loadUsage() {
   }
 }
 
+// ---------- backup ----------
+
+$("backup-download").addEventListener("click", async (e) => {
+  const button = e.currentTarget;
+  button.disabled = true;
+  say("backup-status", "Preparing the backup…");
+  try {
+    const headers = new Headers();
+    if (apiKey) headers.set("X-Api-Key", apiKey);
+    const response = await fetch("api/backup", { headers });
+    if (response.status === 401) throw new AuthError("The API key is missing or wrong. Enter it above.");
+    if (!response.ok) throw new Error(`The backup failed (${response.status}).`);
+    const name = /filename="?([^";]+)"?/.exec(response.headers.get("Content-Disposition") ?? "")?.[1] ?? "chatbot-backup.zip";
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    say("backup-status", `Downloaded ${name}.`, "ok");
+    loadAudit();
+  } catch (err) {
+    handle(err, "backup-status");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$("restore-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const file = $("restore-file").files[0];
+  if (!file) return;
+  if (!window.confirm(`Replace ALL documents, schedules, ratings and usage with ${file.name}? Anything added since that backup is lost.`)) return;
+  const button = submitButton(e);
+  button.disabled = true;
+  say("backup-status", "Restoring…");
+  try {
+    const form = new FormData();
+    form.append("file", file);
+    const result = await api("api/backup/restore", { method: "POST", body: form });
+    say("backup-status", `Restored ${result.documents} document(s); ${result.reindexJobs} re-index job(s) queued (see Jobs).`, "ok");
+    $("restore-file").value = "";
+    loadAll();
+  } catch (err) {
+    handle(err, "backup-status");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+// ---------- activity ----------
+
+async function loadAudit() {
+  try {
+    const entries = await api("api/audit?limit=100");
+    $("audit").replaceChildren(...entries.map((a) => {
+      const tr = document.createElement("tr");
+      const result = cell(String(a.status), "num");
+      if (a.status >= 400) result.classList.add("is-failed");
+      tr.append(cell(when(a.at), "nowrap"), cell(a.ip ? `${a.actor} (${a.ip})` : a.actor, "wrap"),
+        cell(a.action, "nowrap mono"), cell(a.target, "wrap"), result);
+      return tr;
+    }));
+    $("audit-empty").hidden = entries.length > 0;
+    clearError("audit-status");
+  } catch (err) {
+    handle(err, "audit-status");
+  }
+}
+
 // ---------- feedback ----------
 
 async function loadFeedback() {
@@ -442,9 +512,10 @@ async function loadFeedback() {
 // ---------- key ----------
 
 function loadAll() {
-  ["add-status", "docs-status", "schedules-status", "usage-status"].forEach(clearError);
+  ["add-status", "docs-status", "schedules-status", "usage-status", "audit-status", "backup-status"].forEach(clearError);
   loadStatus();
   loadUsage();
+  loadAudit();
   loadSchedules();
   loadJobs();
   loadDocuments();
@@ -472,6 +543,7 @@ $("refresh-schedules").addEventListener("click", loadSchedules);
 $("refresh-docs").addEventListener("click", loadDocuments);
 $("refresh-feedback").addEventListener("click", loadFeedback);
 $("refresh-usage").addEventListener("click", loadUsage);
+$("refresh-audit").addEventListener("click", loadAudit);
 $("usage-days").addEventListener("change", loadUsage);
 $("feedback-filter").addEventListener("change", loadFeedback);
 

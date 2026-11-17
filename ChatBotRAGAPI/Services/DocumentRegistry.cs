@@ -29,26 +29,37 @@ public sealed class DocumentRegistry
     private readonly object _sync = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly TimeProvider _time;
+    private readonly ILogger<DocumentRegistry> _logger;
 
     public DocumentRegistry(IOptions<RagOptions> options, ILogger<DocumentRegistry> logger, TimeProvider? time = null)
     {
         _time = time ?? TimeProvider.System;
+        _logger = logger;
         _directory = Path.Combine(options.Value.DataDirectory, "documents");
         _indexPath = Path.Combine(_directory, "index.json");
         Directory.CreateDirectory(_directory);
+        Reload();
+    }
 
-        if (!File.Exists(_indexPath)) return;
-        try
+    /// <summary>Reads index.json again (after a restore replaced it). Callers that change documents hold <see cref="LockAsync"/>.</summary>
+    public void Reload()
+    {
+        lock (_sync)
         {
-            foreach (var entry in JsonSerializer.Deserialize<List<Entry>>(File.ReadAllText(_indexPath)) ?? [])
-                _entries[entry.Source] = entry;
-        }
-        catch (JsonException ex)
-        {
-            // Keep the unreadable file for inspection rather than silently overwriting it on the next save.
-            var backup = $"{_indexPath}.corrupt-{_time.GetUtcNow():yyyyMMddHHmmss}";
-            File.Move(_indexPath, backup);
-            logger.LogError(ex, "Document index was unreadable; moved to {Backup} and starting empty", backup);
+            _entries.Clear();
+            if (!File.Exists(_indexPath)) return;
+            try
+            {
+                foreach (var entry in JsonSerializer.Deserialize<List<Entry>>(File.ReadAllText(_indexPath)) ?? [])
+                    _entries[entry.Source] = entry;
+            }
+            catch (JsonException ex)
+            {
+                // Keep the unreadable file for inspection rather than silently overwriting it on the next save.
+                var backup = $"{_indexPath}.corrupt-{_time.GetUtcNow():yyyyMMddHHmmss}";
+                File.Move(_indexPath, backup);
+                _logger.LogError(ex, "Document index was unreadable; moved to {Backup} and starting empty", backup);
+            }
         }
     }
 

@@ -42,6 +42,7 @@ public sealed class DocumentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete([FromQuery] string source, CancellationToken ct)
     {
+        HttpContext.Items[AuditLog.TargetItem] = source;
         if (string.IsNullOrWhiteSpace(source)) return BadRequest("source is required.");
 
         using (await _registry.LockAsync(ct))

@@ -37,6 +37,7 @@ public sealed class IngestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public ActionResult<EnqueueResponse> Scrape([FromBody] ScrapeRequest request)
     {
+        HttpContext.Items[AuditLog.TargetItem] = request.Url;
         var maxPages = request.MaxPages ?? 1;
         if (ScrapeTarget.Validate(request.Url, maxPages, request.RemoveMissing, _options.MaxCrawlPages, out var uri) is { } error)
             return BadRequest(error);
@@ -62,6 +63,7 @@ public sealed class IngestionController : ControllerBase
     [RequestSizeLimit(50_000_000)]
     public async Task<ActionResult<EnqueueResponse>> Upload(IFormFile file, CancellationToken ct)
     {
+        HttpContext.Items[AuditLog.TargetItem] = file?.FileName;
         if (file is null || file.Length == 0) return BadRequest("Empty file.");
 
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();

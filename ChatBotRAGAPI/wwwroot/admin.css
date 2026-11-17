@@ -185,6 +185,8 @@ th:last-child, td:last-child { padding-right: 0; }
 .chart__table summary { color: var(--color-ink-2); font-size: var(--text-sm); cursor: pointer; }
 .chart__table .table-wrap { margin-top: var(--space-xs); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-outlier); font-size: var(--text-sm); }
+.is-failed { color: var(--color-error); font-weight: 600; }
 
 /* State: an ink outline, red only for failure, dashed while still in progress. */
 .badge {

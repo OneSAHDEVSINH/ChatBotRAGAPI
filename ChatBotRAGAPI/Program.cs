@@ -25,7 +25,7 @@ var chatFrameAncestors = (builder.Configuration.GetSection("Widget").Get<WidgetO
 if (proxyOptions.Enabled)
     builder.Services.Configure<ForwardedHeadersOptions>(o => ProxySetup.Configure(o, proxyOptions));
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(o => o.Filters.Add<AuditFilter>());
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -114,6 +114,9 @@ builder.Services.AddSingleton<RagService>();
 builder.Services.AddSingleton<EvalService>();
 builder.Services.AddSingleton<FeedbackStore>();
 builder.Services.AddSingleton<UsageLog>();
+builder.Services.AddSingleton<AuditLog>();
+builder.Services.AddScoped<AuditFilter>();
+builder.Services.AddSingleton<BackupService>();
 builder.Services.AddHostedService<IngestionWorker>();
 builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<CrawlScheduler>();
