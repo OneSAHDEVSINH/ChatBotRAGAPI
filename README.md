@@ -168,6 +168,7 @@ All under `Rag` in `ChatBotRAGAPI/appsettings.json` (override with env vars such
 | `HybridSearch` | true | Add BM25 keyword search to vector search |
 | `MaxHistoryMessages` | 6 | Conversation turns used for follow-ups |
 | `UsageStoreQuestions` | true | Keep question text in `usage.jsonl` (for the unanswered list); false = counts only |
+| `Rerank` | false | After retrieval, the chat model reorders the top `RerankCandidates` (10) passages by usefulness and drops useless ones; one extra model call per question (best on a GPU or cloud model) |
 | `RewriteFollowUps` | true | Rewrite a follow-up ("what does it cost?") into a standalone question before searching; one short extra model call per follow-up |
 | `DisableThinking` | true | Stops reasoning models (qwen3, deepseek-r1) spending the token budget on hidden thinking |
 | `OcrModel` | empty (off) | Ollama vision model that reads scanned PDF pages; `OcrMaxTokens` (2048) caps one page |

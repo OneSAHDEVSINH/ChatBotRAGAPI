@@ -45,6 +45,7 @@ public static class AiProviders
             case Ollama:
                 services.AddSingleton<IAnswerGenerator>(sp => sp.GetRequiredService<OllamaClient>());
                 services.AddSingleton<IQueryRewriter>(sp => sp.GetRequiredService<OllamaClient>());
+                services.AddSingleton<IReranker>(sp => sp.GetRequiredService<OllamaClient>());
                 if (ocr) services.AddSingleton<IImageTextReader>(sp => sp.GetRequiredService<OllamaClient>());
                 break;
 
@@ -55,6 +56,8 @@ public static class AiProviders
                     new ChatClientAnswerGenerator(sp.GetRequiredService<IChatClient>(), OpenAI, options.OpenAI.MaxOutputTokens));
                 services.AddSingleton<IQueryRewriter>(sp =>
                     new ChatClientQueryRewriter(sp.GetRequiredService<IChatClient>(), OpenAI, options.OpenAI.MaxOutputTokens));
+                services.AddSingleton<IReranker>(sp =>
+                    new ChatClientReranker(sp.GetRequiredService<IChatClient>(), OpenAI, options.OpenAI.MaxOutputTokens));
                 if (ocr) services.AddSingleton<IImageTextReader>(new ChatClientImageTextReader(
                     openAi.GetChatClient(options.OcrModel).AsIChatClient(), OpenAI, options.OcrMaxTokens));
                 break;
@@ -66,6 +69,8 @@ public static class AiProviders
                     new ChatClientAnswerGenerator(sp.GetRequiredService<IChatClient>(), Anthropic, options.Anthropic.MaxTokens));
                 services.AddSingleton<IQueryRewriter>(sp =>
                     new ChatClientQueryRewriter(sp.GetRequiredService<IChatClient>(), Anthropic, options.Anthropic.MaxTokens));
+                services.AddSingleton<IReranker>(sp =>
+                    new ChatClientReranker(sp.GetRequiredService<IChatClient>(), Anthropic, options.Anthropic.MaxTokens));
                 if (ocr) services.AddSingleton<IImageTextReader>(new ChatClientImageTextReader(
                     claude.AsIChatClient(options.OcrModel), Anthropic, options.OcrMaxTokens));
                 break;

@@ -14,6 +14,7 @@ public sealed class RagService
     private readonly IVectorStore _vectorStore;
     private readonly KeywordIndex? _keywords;
     private readonly IQueryRewriter? _rewriter;
+    private readonly IReranker? _reranker;
     private readonly ILogger<RagService>? _logger;
     private readonly RagOptions _options;
 
@@ -24,13 +25,15 @@ public sealed class RagService
         IOptions<RagOptions> options,
         KeywordIndex? keywords = null,
         IQueryRewriter? rewriter = null,
-        ILogger<RagService>? logger = null)
+        ILogger<RagService>? logger = null,
+        IReranker? reranker = null)
     {
         _embeddingClient = embeddingClient;
         _answerGenerator = answerGenerator;
         _vectorStore = vectorStore;
         _keywords = keywords;
         _rewriter = rewriter;
+        _reranker = reranker;
         _logger = logger;
         _options = options.Value;
     }
@@ -121,17 +124,20 @@ public sealed class RagService
         var query = await SearchQueryAsync(question, history, ct);
         var minScore = _options.EffectiveMinScore;
         var hybrid = _options.HybridSearch && _keywords is not null;
-        var pool = hybrid ? Math.Max(_options.TopK, _options.SearchCandidates) : _options.TopK;
+        var reranking = _options.Rerank && _reranker is not null;
+        var keep = reranking ? Math.Max(_options.TopK, _options.RerankCandidates) : _options.TopK;
+        var pool = hybrid ? Math.Max(keep, _options.SearchCandidates) : keep;
 
         var qvec = await _embeddingClient.EmbedAsync(query, ct);
         var vectorHits = await _vectorStore.SearchAsync(qvec, pool, ct);
 
         if (!hybrid)
         {
-            return vectorHits
+            return await RerankAsync(query, vectorHits
                 .Where(h => h.Score >= minScore)
                 .Select(h => new Retrieved(h, h.Score, "semantic"))
-                .ToList();
+                .Take(keep)
+                .ToList(), ct);
         }
 
         var keywordHits = _keywords!.Search(query, pool);
@@ -166,13 +172,39 @@ public sealed class RagService
                 : (new SearchHit(k.Text, k.Source, 0), null, false, true, contribution);
         }
 
-        return fused.Values
+        return await RerankAsync(query, fused.Values
             .Where(e => e.Semantic || e.Keyword)
             .OrderByDescending(e => e.Rrf)
             .ThenByDescending(e => e.Cosine ?? 0)
-            .Take(_options.TopK)
+            .Take(keep)
             .Select(e => new Retrieved(e.Hit, e.Cosine, e.Semantic && e.Keyword ? "both" : e.Semantic ? "semantic" : "keyword"))
-            .ToList();
+            .ToList(), ct);
+    }
+
+    /// <summary>
+    /// With <see cref="RagOptions.Rerank"/>, the model's order of the useful candidates, cut to TopK. The reranker
+    /// can reorder and prune but never decides alone that nothing is relevant: an empty or failed ranking keeps
+    /// retrieval's order, so a refusal still comes only from the MinScore/keyword rules.
+    /// </summary>
+    private async Task<List<Retrieved>> RerankAsync(string query, List<Retrieved> candidates, CancellationToken ct)
+    {
+        if (!_options.Rerank || _reranker is null || candidates.Count < 2) return candidates.Take(_options.TopK).ToList();
+        try
+        {
+            var ranking = await _reranker.RankAsync(query, candidates.Select(c => c.Hit.Text).ToList(), ct);
+            if (ranking.Count > 0)
+            {
+                _logger?.LogInformation("Reranked {Count} passages for {Query}: kept {Ranking}", candidates.Count, query,
+                    string.Join(", ", ranking.Select(i => i + 1)));
+                return ranking.Select(i => candidates[i]).Take(_options.TopK).ToList();
+            }
+            _logger?.LogWarning("The reranker found no useful passage for {Query}; keeping the retrieval order", query);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            _logger?.LogWarning(ex, "Reranking failed for {Query}; keeping the retrieval order", query);
+        }
+        return candidates.Take(_options.TopK).ToList();
     }
 
     private IReadOnlyList<ChatMessage> RecentHistory(IReadOnlyList<ChatMessage>? history) =>

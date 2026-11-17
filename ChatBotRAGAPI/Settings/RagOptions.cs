@@ -110,6 +110,16 @@ public sealed class RagOptions
     /// </summary>
     public bool RewriteFollowUps { get; set; } = true;
 
+    /// <summary>
+    /// After retrieval, has the chat model reorder the top RerankCandidates passages by how much each helps answer
+    /// the question, and drop the ones it calls useless (never all of them). One extra model call per question, so
+    /// off by default: worth it on a GPU or cloud model with many similar documents, slow on a CPU.
+    /// </summary>
+    public bool Rerank { get; set; }
+
+    /// <summary>How many retrieved passages the reranker sees (at least TopK); TopK of them are kept.</summary>
+    public int RerankCandidates { get; set; } = 10;
+
     /// <summary>Only the most recent this-many history messages are used (prompt size grows with each turn).</summary>
     public int MaxHistoryMessages { get; set; } = 6;
 

@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 
 namespace ChatBotRAGAPI.Services;
 
-public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, IImageTextReader, IQueryRewriter
+public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, IImageTextReader, IQueryRewriter, IReranker
 {
     private readonly HttpClient _httpClient;
     private readonly RagOptions _options;
@@ -115,6 +115,17 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, I
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
         return QueryRewritePrompt.Clean(doc.RootElement.GetProperty("response").GetString());
+    }
+
+    /// <summary>Ranks passages for <see cref="RagOptions.Rerank"/>: short output, deterministic.</summary>
+    public async Task<IReadOnlyList<int>> RankAsync(string question, IReadOnlyList<string> passages, CancellationToken ct)
+    {
+        using var response = await _httpClient.PostAsync("/api/generate",
+            GenerateBody(RerankPrompt.Build(question, passages), stream: false, RerankPrompt.MaxTokens, temperature: 0), ct);
+        await EnsureSuccessAsync(response, ct);
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return RerankPrompt.Parse(doc.RootElement.GetProperty("response").GetString(), passages.Count);
     }
 
     private StringContent GenerateBody(string prompt, bool stream, int? maxTokens = null, double temperature = 0.1)
