@@ -20,6 +20,8 @@ var ragOptions = builder.Configuration.GetSection("Rag").Get<RagOptions>() ?? ne
 builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection("Security"));
 var rateLimitOptions = builder.Configuration.GetSection("RateLimit").Get<RateLimitOptions>() ?? new RateLimitOptions();
 var proxyOptions = builder.Configuration.GetSection("ForwardedHeaders").Get<ProxyOptions>() ?? new ProxyOptions();
+// Checked at startup: an invalid origin fails fast instead of silently blocking (or allowing) embedding.
+var chatFrameAncestors = (builder.Configuration.GetSection("Widget").Get<WidgetOptions>() ?? new WidgetOptions()).FrameAncestors();
 if (proxyOptions.Enabled)
     builder.Services.Configure<ForwardedHeadersOptions>(o => ProxySetup.Configure(o, proxyOptions));
 
@@ -144,8 +146,11 @@ app.UseStaticFiles(new StaticFileOptions
     OnPrepareResponse = ctx =>
     {
         var headers = ctx.Context.Response.Headers;
+        // Only the chat page may be framed, and only by Widget:AllowedOrigins (the embeddable widget); the admin
+        // page and everything else never can be.
+        var frameAncestors = ctx.File.Name == "index.html" ? chatFrameAncestors : "'none'";
         headers.ContentSecurityPolicy =
-            "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+            $"default-src 'self'; img-src 'self' data:; frame-ancestors {frameAncestors}; base-uri 'self'; form-action 'self'";
         headers.XContentTypeOptions = "nosniff";
         // Revalidate on every load (a cheap 304 via the ETag), so a deploy never runs an old app.js against new HTML.
         headers.CacheControl = "no-cache";

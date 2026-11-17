@@ -23,3 +23,6 @@ TestResults/
 
 # Hallmark writes renders next to the files it lints; never ship them from wwwroot
 ChatBotRAGAPI/wwwroot/.hallmark/
+
+# Browser-test screenshots and logs (Playwright MCP)
+.playwright-mcp/

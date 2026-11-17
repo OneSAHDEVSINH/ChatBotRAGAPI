@@ -8,6 +8,7 @@ then ask questions that are answered **only** from that content, with numbered c
 - **Cited answers**: `[1]`, `[2]` in the answer match `sources[].id`
 - **Streaming** answers over Server-Sent Events, and **follow-up questions** via conversation history
 - **Documents** are tracked by source: re-ingesting replaces, deleting removes every chunk, and the index survives restarts; embeddings are cached on disk, so restarts and unchanged re-ingests don't re-embed
+- **Chat widget for any website**: one script tag adds an "Ask us" button that opens the chat in a panel (see below)
 - **Admin page** at `/admin.html`: upload files, crawl sites, schedule re-crawls, follow jobs, delete documents, read feedback (API key)
 - **Chat UI** at `/`: streaming answers, clickable citations that show the passage, follow-up questions, helpful / not helpful ratings
 - Runs fully local with [Ollama](https://ollama.com); a no-LLM fallback mode needs nothing else at all
@@ -118,6 +119,20 @@ curl -X POST http://localhost:5170/api/chat/ask -H "Content-Type: application/js
   follow-up with history or a crawl). Leave `history` out for a first question.
 - Ready-made requests: `ChatBotRAGAPI/ChatBotRAGAPI.http` (VS / VS Code / Rider) and
   `ChatBotRAGAPI/ChatBotRAGAPI.postman_collection.json` (Postman: set `baseUrl` and `apiKey`).
+
+## Embedding the chat on a website
+
+Add the widget to any page of the site:
+
+```html
+<script src="https://bot.example.com/widget.js" defer
+        data-label="Ask us" data-title="Ask Giriraj Digital" data-position="right"></script>
+```
+
+and allow that site in the bot's configuration (scheme + host, no path), e.g. env `Widget__AllowedOrigins__0=https://www.girirajdigital.com`.
+The chat runs in a frame from the bot's own address, so the site's styles and scripts can't interfere with it. Browsers refuse to show
+the frame on sites that aren't listed, and the admin page can never be framed. The frame is only created when a visitor opens the chat;
+on phones it fills the screen. Close it with the X, Escape or the button again.
 
 ## Security
 

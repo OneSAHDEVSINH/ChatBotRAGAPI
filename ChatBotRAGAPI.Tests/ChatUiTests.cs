@@ -46,7 +46,7 @@ public class ChatUiTests : IDisposable
 
         var csp = Assert.Single(response.Headers.GetValues("Content-Security-Policy"));
         Assert.Contains("default-src 'self'", csp);
-        Assert.Contains("frame-ancestors 'none'", csp);
+        Assert.Contains("frame-ancestors 'self';", csp); // no other site may frame it unless Widget:AllowedOrigins lists it
         Assert.DoesNotContain("unsafe-inline", csp);
         Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
     }
@@ -110,6 +110,54 @@ public class ChatUiTests : IDisposable
         Assert.DoesNotContain("insertAdjacentHTML", js);
         Assert.DoesNotContain("document.write", js);
         Assert.Contains("X-Api-Key", js);
+    }
+
+    [Fact]
+    public async Task The_widget_script_is_served_and_only_writes_text()
+    {
+        var response = await _client.GetAsync("/widget.js", Ct);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/javascript", response.Content.Headers.ContentType?.MediaType);
+
+        var js = await response.Content.ReadAsStringAsync(Ct);
+        Assert.DoesNotContain("innerHTML", js);
+        Assert.Contains("e.origin === botOrigin", js); // only the bot may close the panel
+        Assert.Contains("embed=1", js);
+    }
+
+    [Fact]
+    public async Task By_default_no_site_may_frame_the_chat()
+    {
+        var csp = Assert.Single((await _client.GetAsync("/", Ct)).Headers.GetValues("Content-Security-Policy"));
+        Assert.Contains("frame-ancestors 'self';", csp);
+    }
+
+    [Fact]
+    public async Task Listed_sites_may_frame_the_chat_page_but_never_the_admin_page()
+    {
+        using var app = new RagApiFactory(settings: new Dictionary<string, string>
+        {
+            ["Widget:AllowedOrigins:0"] = "https://www.example.com",
+            ["Widget:AllowedOrigins:1"] = "https://shop.example.com:8443/",
+        });
+        using var client = app.CreateClient();
+
+        var chat = Assert.Single((await client.GetAsync("/?embed=1", Ct)).Headers.GetValues("Content-Security-Policy"));
+        Assert.Contains("frame-ancestors 'self' https://www.example.com https://shop.example.com:8443;", chat);
+
+        var admin = Assert.Single((await client.GetAsync("/admin.html", Ct)).Headers.GetValues("Content-Security-Policy"));
+        Assert.Contains("frame-ancestors 'none'", admin);
+    }
+
+    [Theory]
+    [InlineData("www.example.com")]
+    [InlineData("https://www.example.com/page")]
+    [InlineData("ftp://example.com")]
+    public void An_invalid_widget_origin_fails_startup(string origin)
+    {
+        using var app = new RagApiFactory(settings: new Dictionary<string, string> { ["Widget:AllowedOrigins:0"] = origin });
+        var error = Assert.ThrowsAny<Exception>(() => app.CreateClient());
+        Assert.Contains("Widget:AllowedOrigins", error.ToString());
     }
 
     [Fact]

@@ -378,6 +378,20 @@ body {
   font-size: var(--text-xs);
 }
 
+.topbar__actions { display: flex; align-items: center; gap: var(--space-xs); }
+.btn--square { width: 40px; padding: 0; }
+
+/* ---------- embedded in a website (widget.js): a compact panel ---------- */
+
+.embedded .topbar__inner { min-height: 52px; }
+.embedded .wordmark { font-size: var(--text-md); }
+.embedded .shell { padding-inline: var(--space-md); }
+.embedded .conversation { padding: var(--space-md); gap: var(--space-md); }
+.embedded .empty { padding: var(--space-lg); }
+.embedded .empty h2 { font-size: var(--text-lg); }
+.embedded .msg.assistant .bubble { padding: var(--space-md) var(--space-lg); }
+.embedded .footnote { display: none; }
+
 /* ---------- small screens ---------- */
 
 @media (max-width: 40rem) {

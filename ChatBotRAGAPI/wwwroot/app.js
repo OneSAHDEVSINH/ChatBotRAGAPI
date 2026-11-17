@@ -414,6 +414,24 @@ els.newChat.addEventListener("click", () => {
   els.input.focus();
 });
 
+// ---------- embedded in another website (widget.js) ----------
+
+const params = new URLSearchParams(location.search);
+if (params.has("embed") && window.parent !== window) {
+  document.body.classList.add("embedded");
+  const title = params.get("title")?.trim().slice(0, 60);
+  if (title) {
+    document.querySelector(".wordmark").textContent = title;
+    document.title = title;
+  }
+  // The host page owns the frame: ask it to close (it only listens to messages from this origin).
+  const closeChat = () => window.parent.postMessage({ type: "knowledge-chat:close" }, "*");
+  const close = document.getElementById("close-chat");
+  close.hidden = false;
+  close.addEventListener("click", closeChat);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeChat(); });
+}
+
 renderAll();
 updateSend();
 els.input.focus();
