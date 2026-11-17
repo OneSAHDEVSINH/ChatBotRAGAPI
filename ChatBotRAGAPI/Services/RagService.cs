@@ -13,6 +13,8 @@ public sealed class RagService
     private readonly IAnswerGenerator _answerGenerator;
     private readonly IVectorStore _vectorStore;
     private readonly KeywordIndex? _keywords;
+    private readonly IQueryRewriter? _rewriter;
+    private readonly ILogger<RagService>? _logger;
     private readonly RagOptions _options;
 
     public RagService(
@@ -20,12 +22,16 @@ public sealed class RagService
         IAnswerGenerator answerGenerator,
         IVectorStore vectorStore,
         IOptions<RagOptions> options,
-        KeywordIndex? keywords = null)
+        KeywordIndex? keywords = null,
+        IQueryRewriter? rewriter = null,
+        ILogger<RagService>? logger = null)
     {
         _embeddingClient = embeddingClient;
         _answerGenerator = answerGenerator;
         _vectorStore = vectorStore;
         _keywords = keywords;
+        _rewriter = rewriter;
+        _logger = logger;
         _options = options.Value;
     }
 
@@ -78,6 +84,33 @@ public sealed class RagService
     }
 
     /// <summary>
+    /// What to search for: the question itself; for a follow-up, the rewriter's standalone version of it
+    /// (<see cref="RagOptions.RewriteFollowUps"/>), falling back to <see cref="RetrievalQuery"/> when rewriting is
+    /// off, unavailable (local fallback) or fails. A failing rewrite never fails the request.
+    /// </summary>
+    public async Task<string> SearchQueryAsync(string question, IReadOnlyList<ChatMessage> history, CancellationToken ct)
+    {
+        if (!history.Any(m => m.Role == "user")) return question;
+        if (_options.RewriteFollowUps && _rewriter is not null)
+        {
+            try
+            {
+                if (await _rewriter.RewriteAsync(question, history, ct) is { } rewritten)
+                {
+                    _logger?.LogInformation("Follow-up {Question} searched as {Rewritten}", question, rewritten);
+                    return rewritten;
+                }
+                _logger?.LogWarning("Rewriting the follow-up {Question} gave nothing usable; searching it with the previous question", question);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                _logger?.LogWarning(ex, "Rewriting the follow-up {Question} failed; searching it with the previous question", question);
+            }
+        }
+        return RetrievalQuery(question, history);
+    }
+
+    /// <summary>
     /// Vector search, optionally fused with BM25 keyword search. A passage is admitted when its cosine clears
     /// EffectiveMinScore (weak semantic matches mislead the generator) or when it contains at least
     /// MinKeywordCoverage of the query terms. Admitted passages are ordered by reciprocal rank fusion of their
@@ -85,7 +118,7 @@ public sealed class RagService
     /// </summary>
     private async Task<List<Retrieved>> RetrieveAsync(string question, IReadOnlyList<ChatMessage> history, CancellationToken ct)
     {
-        var query = RetrievalQuery(question, history);
+        var query = await SearchQueryAsync(question, history, ct);
         var minScore = _options.EffectiveMinScore;
         var hybrid = _options.HybridSearch && _keywords is not null;
         var pool = hybrid ? Math.Max(_options.TopK, _options.SearchCandidates) : _options.TopK;

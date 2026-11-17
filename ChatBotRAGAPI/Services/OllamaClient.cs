@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 
 namespace ChatBotRAGAPI.Services;
 
-public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, IImageTextReader
+public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, IImageTextReader, IQueryRewriter
 {
     private readonly HttpClient _httpClient;
     private readonly RagOptions _options;
@@ -106,7 +106,18 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, I
         if (filter.Flush() is { Length: > 0 } rest) yield return rest.TrimEnd();
     }
 
-    private StringContent GenerateBody(string prompt, bool stream)
+    /// <summary>Rewrites a follow-up for search: short output, deterministic.</summary>
+    public async Task<string?> RewriteAsync(string question, IReadOnlyList<ChatMessage> history, CancellationToken ct)
+    {
+        using var response = await _httpClient.PostAsync("/api/generate",
+            GenerateBody(QueryRewritePrompt.Build(question, history), stream: false, QueryRewritePrompt.MaxTokens, temperature: 0), ct);
+        await EnsureSuccessAsync(response, ct);
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return QueryRewritePrompt.Clean(doc.RootElement.GetProperty("response").GetString());
+    }
+
+    private StringContent GenerateBody(string prompt, bool stream, int? maxTokens = null, double temperature = 0.1)
     {
         var body = new Dictionary<string, object?>
         {
@@ -116,9 +127,9 @@ public sealed partial class OllamaClient : IEmbeddingClient, IAnswerGenerator, I
             ["keep_alive"] = _options.KeepAlive,
             ["options"] = new
             {
-                num_predict = _options.MaxGenerateTokens,
+                num_predict = maxTokens ?? _options.MaxGenerateTokens,
                 num_ctx = _options.NumCtx,
-                temperature = 0.1
+                temperature
             }
         };
 

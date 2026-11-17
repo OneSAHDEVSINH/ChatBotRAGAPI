@@ -44,6 +44,7 @@ public static class AiProviders
         {
             case Ollama:
                 services.AddSingleton<IAnswerGenerator>(sp => sp.GetRequiredService<OllamaClient>());
+                services.AddSingleton<IQueryRewriter>(sp => sp.GetRequiredService<OllamaClient>());
                 if (ocr) services.AddSingleton<IImageTextReader>(sp => sp.GetRequiredService<OllamaClient>());
                 break;
 
@@ -52,6 +53,8 @@ public static class AiProviders
                 services.AddChatClient(openAi.GetChatClient(options.ChatModel).AsIChatClient()).UseLogging();
                 services.AddSingleton<IAnswerGenerator>(sp =>
                     new ChatClientAnswerGenerator(sp.GetRequiredService<IChatClient>(), OpenAI, options.OpenAI.MaxOutputTokens));
+                services.AddSingleton<IQueryRewriter>(sp =>
+                    new ChatClientQueryRewriter(sp.GetRequiredService<IChatClient>(), OpenAI, options.OpenAI.MaxOutputTokens));
                 if (ocr) services.AddSingleton<IImageTextReader>(new ChatClientImageTextReader(
                     openAi.GetChatClient(options.OcrModel).AsIChatClient(), OpenAI, options.OcrMaxTokens));
                 break;
@@ -61,6 +64,8 @@ public static class AiProviders
                 services.AddChatClient(claude.AsIChatClient(options.ChatModel)).UseLogging();
                 services.AddSingleton<IAnswerGenerator>(sp =>
                     new ChatClientAnswerGenerator(sp.GetRequiredService<IChatClient>(), Anthropic, options.Anthropic.MaxTokens));
+                services.AddSingleton<IQueryRewriter>(sp =>
+                    new ChatClientQueryRewriter(sp.GetRequiredService<IChatClient>(), Anthropic, options.Anthropic.MaxTokens));
                 if (ocr) services.AddSingleton<IImageTextReader>(new ChatClientImageTextReader(
                     claude.AsIChatClient(options.OcrModel), Anthropic, options.OcrMaxTokens));
                 break;

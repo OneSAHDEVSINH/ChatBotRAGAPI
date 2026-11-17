@@ -105,6 +105,8 @@ curl -X POST http://localhost:5170/api/chat/ask -H "Content-Type: application/js
 
 - **Follow-ups**: the server keeps no conversation state. Send earlier turns as
   `"history": [{"role":"user","content":"..."},{"role":"assistant","content":"..."}]`.
+  Before searching, the chat model rewrites a follow-up into a question that stands on its own
+  ("And its SLA?" becomes "What is the SLA of the Cloud Cost Optimization Enterprise plan?"); the answer still uses your words.
 - **Documents are keyed by source** (file name or URL): uploading `report.pdf` again replaces the previous `report.pdf`.
 - **Crawling** (`maxPages` > 1, up to `Rag:MaxCrawlPages`) follows links on the same host and under the start page's
   path (a home page covers the whole site; `/docs/intro` covers `/docs/...`), breadth-first, honouring robots.txt and
@@ -162,6 +164,7 @@ All under `Rag` in `ChatBotRAGAPI/appsettings.json` (override with env vars such
 | `ChunkSize` / `ChunkOverlap` | 700 / 80 | Characters; chunks split on paragraph → line → sentence → word |
 | `HybridSearch` | true | Add BM25 keyword search to vector search |
 | `MaxHistoryMessages` | 6 | Conversation turns used for follow-ups |
+| `RewriteFollowUps` | true | Rewrite a follow-up ("what does it cost?") into a standalone question before searching; one short extra model call per follow-up |
 | `DisableThinking` | true | Stops reasoning models (qwen3, deepseek-r1) spending the token budget on hidden thinking |
 | `OcrModel` | empty (off) | Ollama vision model that reads scanned PDF pages; `OcrMaxTokens` (2048) caps one page |
 | `HttpRetryAttempts` | 2 | Retries of transient Ollama/Qdrant failures; outages return 503 |

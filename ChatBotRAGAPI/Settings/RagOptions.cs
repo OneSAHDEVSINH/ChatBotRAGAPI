@@ -94,6 +94,13 @@ public sealed class RagOptions
     /// <summary>First retry delay; doubles per attempt with jitter (~0.5 s, ~1 s by default). Kept short: a chat request waits through all attempts, and on Windows each refused connection already costs ~2 s.</summary>
     public double HttpRetryBaseDelaySeconds { get; set; } = 0.5;
 
+    /// <summary>
+    /// Before searching for a follow-up question, has the chat model rewrite it to stand on its own ("what does it
+    /// cost?" becomes "What does the Gold SLA cost?"). One short extra model call per follow-up; the first question
+    /// of a conversation never pays it. Off, or when rewriting fails, the previous question is searched with it.
+    /// </summary>
+    public bool RewriteFollowUps { get; set; } = true;
+
     /// <summary>Only the most recent this-many history messages are used (prompt size grows with each turn).</summary>
     public int MaxHistoryMessages { get; set; } = 6;
 

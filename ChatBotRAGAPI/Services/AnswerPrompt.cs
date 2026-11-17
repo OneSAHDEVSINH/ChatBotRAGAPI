@@ -34,6 +34,9 @@ public static partial class AnswerPrompt
         """;
     }
 
+    /// <summary>Removes [n] citation markers (they point at passages of another prompt).</summary>
+    public static string StripCitations(string text) => CitationMarker().Replace(text, string.Empty);
+
     /// <summary>Removes inline reasoning that some models emit instead of using a separate thinking channel.</summary>
     public static string StripThinking(string text) => ThinkBlock().Replace(text, string.Empty).Trim();
 
