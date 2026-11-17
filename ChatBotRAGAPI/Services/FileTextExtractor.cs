@@ -1,13 +1,16 @@
-﻿using ClosedXML.Excel;
+﻿using AngleSharp.Html.Parser;
+using ClosedXML.Excel;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using System.Text;
+using System.Text.RegularExpressions;
+using Drawing = DocumentFormat.OpenXml.Drawing;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace ChatBotRAGAPI.Services;
 
-public sealed class FileTextExtractor
+public sealed partial class FileTextExtractor
 {
     private readonly IImageTextReader? _ocr;
     private readonly ILogger<FileTextExtractor>? _logger;
@@ -23,7 +26,7 @@ public sealed class FileTextExtractor
 
     /// <summary>The single list of accepted upload types (the controller validates against it).</summary>
     public static readonly IReadOnlySet<string> SupportedExtensions =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".txt", ".csv", ".docx", ".xlsx", ".pdf" };
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".txt", ".csv", ".md", ".html", ".htm", ".docx", ".xlsx", ".pptx", ".pdf" };
 
     public async Task<string> ExtractAsync(string filePath, CancellationToken ct)
     {
@@ -33,8 +36,11 @@ public sealed class FileTextExtractor
         {
             ".txt" => await File.ReadAllTextAsync(filePath, ct),
             ".csv" => await File.ReadAllTextAsync(filePath, ct),
+            ".md" => Markdown(await File.ReadAllTextAsync(filePath, ct)),
+            ".html" or ".htm" => await ExtractHtmlAsync(filePath, ct),
             ".docx" => ExtractDocx(filePath),
             ".xlsx" => ExtractXlsx(filePath),
+            ".pptx" => ExtractPptx(filePath),
             ".pdf" => await ExtractPdfAsync(filePath, ct),
             _ => throw new NotSupportedException($"Unsupported file type: {ext}")
         };
@@ -126,6 +132,83 @@ public sealed class FileTextExtractor
         var raw = image.RawBytes.ToArray();
         return raw.Length > 3 && raw[0] == 0xFF && raw[1] == 0xD8 && raw[2] == 0xFF ? raw : null; // JPEG signature
     }
+
+    /// <summary>
+    /// Markdown stays text (headings and lists read fine and keep the structure the chunker splits on); only syntax
+    /// that would pollute search is reduced: links and images become their text, comments and fence markers go.
+    /// </summary>
+    private static string Markdown(string text)
+    {
+        text = MarkdownComment().Replace(text, "");
+        text = MarkdownImageOrLink().Replace(text, "$1");
+        return MarkdownFence().Replace(text, "");
+    }
+
+    [GeneratedRegex(@"<!--.*?-->", RegexOptions.Singleline)]
+    private static partial Regex MarkdownComment();
+
+    [GeneratedRegex(@"!?\[([^\]]*)\]\([^)]*\)")]
+    private static partial Regex MarkdownImageOrLink();
+
+    [GeneratedRegex(@"^[ \t]*(```|~~~).*$\n?", RegexOptions.Multiline)]
+    private static partial Regex MarkdownFence();
+
+    /// <summary>A saved web page: the same text a crawl of it would give (title, main content, no navigation).</summary>
+    private static async Task<string> ExtractHtmlAsync(string filePath, CancellationToken ct)
+    {
+        var html = await File.ReadAllTextAsync(filePath, ct);
+        using var doc = await new HtmlParser().ParseDocumentAsync(html, ct);
+        return WebScraperService.PageText(doc);
+    }
+
+    /// <summary>
+    /// Slides in presentation order, each as "Slide N" then one line per text paragraph (titles, bullets, text
+    /// boxes, table cells), followed by the speaker notes; slides are separated by a blank line so each tends to
+    /// become its own chunk. Hidden slides are skipped.
+    /// </summary>
+    private static string ExtractPptx(string filePath)
+    {
+        using var pptx = PresentationDocument.Open(filePath, false);
+        var presentation = pptx.PresentationPart;
+        var ids = presentation?.Presentation?.SlideIdList?.Elements<DocumentFormat.OpenXml.Presentation.SlideId>() ?? [];
+
+        var sb = new StringBuilder();
+        var number = 0;
+        foreach (var id in ids)
+        {
+            number++;
+            if (id.RelationshipId?.Value is not { } rel || presentation!.GetPartById(rel) is not SlidePart { Slide: { } content } slide) continue;
+            if (content.Show?.Value == false) continue;
+
+            var lines = Paragraphs(content);
+            var notes = slide.NotesSlidePart?.NotesSlide is { } n
+                ? Paragraphs(n).Where(l => !int.TryParse(l, out _)).ToList() // the notes page repeats the slide number
+                : [];
+            if (lines.Count == 0 && notes.Count == 0) continue;
+
+            sb.Append("Slide ").Append(number).Append('\n');
+            foreach (var line in lines) sb.Append(line).Append('\n');
+            if (notes.Count > 0)
+            {
+                sb.Append("Notes:\n");
+                foreach (var line in notes) sb.Append(line).Append('\n');
+            }
+            sb.Append('\n');
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>The non-empty text paragraphs of a slide or notes page, runs joined like in <see cref="ExtractDocx"/>.</summary>
+    private static List<string> Paragraphs(DocumentFormat.OpenXml.OpenXmlElement root) =>
+        root.Descendants<Drawing.Paragraph>()
+            .Select(p => string.Concat(p.Descendants().Select(e => e switch
+            {
+                Drawing.Text t => t.Text,
+                Drawing.Break => "\n",
+                _ => "",
+            })).Trim())
+            .Where(l => l.Length > 0)
+            .ToList();
 
     private static string ExtractXlsx(string filePath)
     {

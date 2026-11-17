@@ -45,7 +45,7 @@ public sealed class IngestionController : ControllerBase
         return Accepted(new EnqueueResponse(jobId, "Queued"));
     }
 
-    /// <summary>Uploads a .txt, .csv, .docx, .xlsx or .pdf file (up to 50 MB) for ingestion.</summary>
+    /// <summary>Uploads a .txt, .csv, .md, .html/.htm, .docx, .xlsx, .pptx or .pdf file (up to 50 MB) for ingestion.</summary>
     /// <remarks>
     /// Runs in the background: poll GET /api/ingestion/{jobId} until Completed. The document is named by the
     /// file name, so uploading a file with the same name again replaces it. Scanned PDFs need Rag:OcrModel.

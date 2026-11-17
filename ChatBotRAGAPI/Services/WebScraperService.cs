@@ -45,6 +45,15 @@ public sealed class WebScraperService
         // site's pages are linked from.
         var links = isHtml ? ExtractLinks(doc, finalUrl) : [];
 
+        return new ScrapedPage(finalUrl, PageText(doc), isHtml, links);
+    }
+
+    /// <summary>
+    /// The readable text of a page: title, then the main content with navigation, scripts and forms removed and
+    /// block boundaries kept as line breaks. Shared by the scraper and uploaded .html files. Modifies <paramref name="doc"/>.
+    /// </summary>
+    public static string PageText(IHtmlDocument doc)
+    {
         foreach (var node in doc.QuerySelectorAll("script,style,nav,footer,header,noscript,svg,form"))
         {
             node.Remove();
@@ -62,7 +71,7 @@ public sealed class WebScraperService
         var text = NormalizeWhitespace(primary?.TextContent ?? doc.Body?.TextContent ?? string.Empty);
         var title = Regex.Replace(doc.Title ?? string.Empty, @"\s+", " ").Trim();
 
-        return new ScrapedPage(finalUrl, string.IsNullOrWhiteSpace(title) ? text : $"{title}\n\n{text}", isHtml, links);
+        return string.IsNullOrWhiteSpace(title) ? text : $"{title}\n\n{text}";
     }
 
     private static List<Uri> ExtractLinks(IHtmlDocument doc, Uri pageUrl)

@@ -23,7 +23,7 @@ Content-Type: application/json
 
 { "url": "https://example.com/", "maxPages": 20, "removeMissing": true }
 
-### Upload a file (txt/csv/docx/xlsx/pdf)
+### Upload a file (txt/csv/md/html/docx/xlsx/pptx/pdf)
 POST {{ChatBotRAGAPI_HostAddress}}/api/ingestion/upload
 X-Api-Key: {{ApiKey}}
 Content-Type: multipart/form-data; boundary=boundary

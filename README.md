@@ -3,7 +3,7 @@
 A retrieval-augmented generation (RAG) chatbot API on ASP.NET Core (.NET 10). Ingest web pages and documents,
 then ask questions that are answered **only** from that content, with numbered citations back to the source.
 
-- **Ingest** web pages (or crawl a whole site) and files: `.txt`, `.csv`, `.docx`, `.xlsx`, `.pdf`
+- **Ingest** web pages (or crawl a whole site) and files: `.txt`, `.csv`, `.md`, `.html`/`.htm`, `.docx`, `.xlsx`, `.pptx` (slides + speaker notes), `.pdf`
 - **Hybrid search**: vector similarity fused with BM25 keyword search, plus a relevance threshold so off-topic questions get *"I don't have enough data."* instead of a hallucination
 - **Cited answers**: `[1]`, `[2]` in the answer match `sources[].id`
 - **Streaming** answers over Server-Sent Events, and **follow-up questions** via conversation history
