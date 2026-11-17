@@ -67,6 +67,8 @@ Running Ollama inside App Service isn't practical, so use a cloud provider for a
 | `Rag__DataDirectory` | `/home/data` on Linux (persistent `/home` share), or `D:\home\data` on Windows |
 | `Rag__UseInMemoryVectorStore` / `Rag__QdrantBaseUrl` | `false` + your Qdrant URL, or leave the in-memory store on |
 | `ANTHROPIC_API_KEY` | when the chat provider is Anthropic |
+| `Authentication__Entra__TenantId` / `__ClientId` / `__ClientSecret` | optional: Microsoft sign-in for the admin page (see the README); App Service's own Easy Auth is not needed |
+| `ForwardedHeaders__Enabled` | `true` with Entra sign-in, plus the front ends' network (see below): App Service terminates HTTPS in front of the app, and the sign-in redirect URI needs the real scheme |
 
 Deploy the code (`az webapp deploy`, or a GitHub Actions workflow) or the container image above (set `WEBSITES_PORT=8080`).
 Under **Monitoring → Health check**, set the path to `/health/ready`. Turn **Always On** on, so the background worker isn't

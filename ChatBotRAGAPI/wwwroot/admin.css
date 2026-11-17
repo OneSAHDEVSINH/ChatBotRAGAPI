@@ -187,6 +187,19 @@ th:last-child, td:last-child { padding-right: 0; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--font-outlier); font-size: var(--text-sm); }
 
+/* ---------- Entra sign-in ---------- */
+
+.signin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  padding-bottom: var(--space-md);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.signin[hidden] { display: none; }
+.signin__text { margin: 0; flex: 1 1 16rem; color: var(--color-ink-2); }
+
 /* ---------- knowledge bases ---------- */
 
 .kb-label { color: var(--color-ink-2); font-size: var(--text-sm); }

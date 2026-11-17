@@ -10,7 +10,7 @@ then ask questions that are answered **only** from that content, with numbered c
 - **Documents** are tracked by source: re-ingesting replaces, deleting removes every chunk, and the index survives restarts; embeddings are cached on disk, so restarts and unchanged re-ingests don't re-embed
 - **Multiple knowledge bases**: separate sets of documents searched separately (e.g. a public website bot and a private staff bot); private ones need their chat key
 - **Chat widget for any website**: one script tag adds an "Ask us" button that opens the chat in a panel (see below)
-- **Admin page** at `/admin.html`: backup/restore, an activity log, usage (questions per day, answered vs not, ratings, answer time, the questions it couldn't answer), upload files, crawl sites, schedule re-crawls, follow jobs, delete documents, read feedback (API key)
+- **Admin page** at `/admin.html` (API key, or Microsoft Entra ID sign-in): backup/restore, an activity log, usage (questions per day, answered vs not, ratings, answer time, the questions it couldn't answer), upload files, crawl sites, schedule re-crawls, follow jobs, delete documents, read feedback (API key)
 - **Chat UI** at `/`: streaming answers, clickable citations that show the passage, follow-up questions, helpful / not helpful ratings
 - Runs fully local with [Ollama](https://ollama.com); a no-LLM fallback mode needs nothing else at all
 
@@ -154,6 +154,29 @@ widget). Each searches only its own documents; the same file name or URL can exi
 A **private** knowledge base answers only requests carrying its chat key in the `X-Chat-Key` header (or the management
 API key). The key is shown once when issued; the admin page gives a chat link with the key (`/?kb=id#key=...`), which the
 chat page moves into the tab's storage and out of the address bar. Existing data needs no migration: it is `default`.
+
+## Signing in to the admin page with Microsoft Entra ID
+
+Optional, free, and the API key keeps working for scripts. In the Entra admin center (your tenant):
+
+1. **App registrations → New registration**, single tenant. Redirect URI: platform **Web**,
+   `https://<your bot>/signin-oidc`. Under **Authentication** add the front-channel logout URL
+   `https://<your bot>/signout-callback-oidc`.
+2. **Certificates & secrets → New client secret**; copy its value.
+3. **App roles → Create app role**: value `Chat.Admin`, allowed member types *Users/Groups*.
+4. **Enterprise applications → (your app) → Users and groups**: assign the role to the people (or a group) who manage the bot.
+5. Configure the bot (secret via environment or user secrets, never appsettings):
+
+```bash
+Authentication__Entra__TenantId=<directory (tenant) id>
+Authentication__Entra__ClientId=<application (client) id>
+Authentication__Entra__ClientSecret=<secret value>
+```
+
+The admin page then shows **Sign in with Microsoft**. Signed-in users with the `Chat.Admin` role (`Authentication:Entra:AdminRole`)
+can manage everything without the API key, and their name appears in the activity log; others get 403. With Entra on, an
+empty `Security:ApiKey` no longer leaves management open. The session is a cookie (8 hours, sliding) that needs HTTPS;
+its encryption keys are kept in `data/keys`, so a restart doesn't sign anyone out.
 
 ## Security
 

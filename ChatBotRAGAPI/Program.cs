@@ -20,6 +20,9 @@ var ragOptions = builder.Configuration.GetSection("Rag").Get<RagOptions>() ?? ne
 builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection("Security"));
 var rateLimitOptions = builder.Configuration.GetSection("RateLimit").Get<RateLimitOptions>() ?? new RateLimitOptions();
 var proxyOptions = builder.Configuration.GetSection("ForwardedHeaders").Get<ProxyOptions>() ?? new ProxyOptions();
+var entraOptions = builder.Configuration.GetSection("Authentication:Entra").Get<EntraOptions>() ?? new EntraOptions();
+builder.Services.Configure<EntraOptions>(builder.Configuration.GetSection("Authentication:Entra"));
+EntraSetup.Add(builder, entraOptions);
 // Checked at startup: an invalid origin fails fast instead of silently blocking (or allowing) embedding.
 var chatFrameAncestors = (builder.Configuration.GetSection("Widget").Get<WidgetOptions>() ?? new WidgetOptions()).FrameAncestors();
 if (proxyOptions.Enabled)
@@ -125,9 +128,11 @@ builder.Services.AddHostedService<CrawlSchedulerService>();
 
 var app = builder.Build();
 
-if (string.IsNullOrEmpty(app.Services.GetRequiredService<IOptions<SecurityOptions>>().Value.ApiKey))
+if (string.IsNullOrEmpty(app.Services.GetRequiredService<IOptions<SecurityOptions>>().Value.ApiKey) && !entraOptions.Enabled)
     app.Logger.LogWarning(
         "Security:ApiKey is not set: ingestion and document endpoints are open to anyone who can reach this app.");
+if (entraOptions.Enabled)
+    app.Logger.LogInformation("Entra ID sign-in is on for the admin page (tenant {Tenant}, role {Role})", entraOptions.TenantId, entraOptions.AdminRole);
 
 // First, so the rate limiter and everything else see the real client address and scheme.
 if (proxyOptions.Enabled)
@@ -163,8 +168,10 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 
+EntraSetup.Map(app, entraOptions);
 app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {

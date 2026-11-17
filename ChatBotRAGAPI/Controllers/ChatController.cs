@@ -31,13 +31,14 @@ public sealed class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// 404 for an unknown knowledge base, 401 for a private one without its X-Chat-Key. The management API key also
-    /// opens private ones, so staff can test them from Swagger or the admin page.
+    /// 404 for an unknown knowledge base, 401 for a private one without its X-Chat-Key. The management API key (or an
+    /// Entra sign-in with the admin role) also opens private ones, so staff can test them from Swagger or the admin page.
     /// </summary>
     private ActionResult? CheckAccess(string kb)
     {
         var access = _knowledgeBases.CanChat(kb, Request.Headers[KnowledgeBaseStore.ChatKeyHeader].ToString());
-        if (access == KnowledgeBaseStore.Access.KeyRequired && Security.ApiKeyAttribute.IsValidManagementKey(HttpContext))
+        if (access == KnowledgeBaseStore.Access.KeyRequired
+            && (Security.ApiKeyAttribute.IsValidManagementKey(HttpContext) || Security.EntraSetup.IsAdmin(HttpContext)))
             access = KnowledgeBaseStore.Access.Allowed;
         return access switch
         {

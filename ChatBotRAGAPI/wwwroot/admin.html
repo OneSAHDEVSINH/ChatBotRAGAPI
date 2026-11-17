@@ -25,6 +25,11 @@
 
   <main class="admin-shell admin">
     <section class="panel stock" aria-labelledby="key-title">
+      <div id="signin" class="signin" hidden>
+        <p id="signin-text" class="signin__text"></p>
+        <a id="signin-link" class="btn btn--ink btn--small" href="signin">Sign in with Microsoft</a>
+        <a id="signout-link" class="btn btn--card btn--small" href="signout" hidden>Sign out</a>
+      </div>
       <h2 id="key-title">API key</h2>
       <form id="key-form" class="row" autocomplete="off">
         <label for="api-key" class="visually-hidden">API key</label>

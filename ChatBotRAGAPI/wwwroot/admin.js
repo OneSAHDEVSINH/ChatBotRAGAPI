@@ -11,6 +11,8 @@ const currentKb = () => $("kb-select").value || "default";
 const kbQuery = () => `knowledgeBase=${encodeURIComponent(currentKb())}`;
 
 let apiKey = "";
+let entraEnabled = false; // set by loadSignIn: then a 401 also suggests signing in
+const authMessage = () => (entraEnabled ? "Sign in with Microsoft, or enter the API key above." : "The API key is missing or wrong. Enter it above.");
 try { apiKey = sessionStorage.getItem(KEY_STORAGE) || ""; } catch { /* storage unavailable */ }
 
 // ---------- api ----------
@@ -21,8 +23,10 @@ class AuthError extends Error {}
 async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
   if (apiKey) headers.set("X-Api-Key", apiKey);
+  // With an Entra sign-in the cookie authenticates; the server also wants this header on changes (CSRF).
+  headers.set("X-Requested-With", "knowledge-chat-admin");
   const response = await fetch(path, { ...options, headers });
-  if (response.status === 401) throw new AuthError("The API key is missing or wrong. Enter it above.");
+  if (response.status === 401) throw new AuthError(authMessage());
   if (!response.ok) {
     let message = `The request failed (${response.status}).`;
     try {
@@ -547,10 +551,10 @@ $("backup-download").addEventListener("click", async (e) => {
   button.disabled = true;
   say("backup-status", "Preparing the backup…");
   try {
-    const headers = new Headers();
+    const headers = new Headers({ "X-Requested-With": "knowledge-chat-admin" });
     if (apiKey) headers.set("X-Api-Key", apiKey);
     const response = await fetch("api/backup", { headers });
-    if (response.status === 401) throw new AuthError("The API key is missing or wrong. Enter it above.");
+    if (response.status === 401) throw new AuthError(authMessage());
     if (!response.ok) throw new Error(`The backup failed (${response.status}).`);
     const name = /filename="?([^";]+)"?/.exec(response.headers.get("Content-Disposition") ?? "")?.[1] ?? "chatbot-backup.zip";
     const url = URL.createObjectURL(await response.blob());
@@ -634,7 +638,26 @@ async function loadFeedback() {
 
 // ---------- key ----------
 
+// ---------- Entra sign-in ----------
+
+async function loadSignIn() {
+  try {
+    const me = await (await fetch("api/me")).json();
+    if (!me.entra) return; // sign-in not configured: the API key is the only way in
+    entraEnabled = true;
+    $("signin").hidden = false;
+    $("signin-link").hidden = me.signedIn;
+    $("signout-link").hidden = !me.signedIn;
+    $("signin-text").textContent = !me.signedIn
+      ? "Sign in with your work account, or use the API key below."
+      : me.admin
+        ? `Signed in as ${me.name}. The API key is not needed.`
+        : `Signed in as ${me.name}, who does not have the admin role. Ask an administrator, or use the API key below.`;
+  } catch { /* leave it hidden */ }
+}
+
 function loadAll() {
+  loadSignIn();
   loadKnowledgeBases();
   ["add-status", "docs-status", "schedules-status", "usage-status", "audit-status", "backup-status", "kbs-status"].forEach(clearError);
   loadStatus();
