@@ -170,6 +170,8 @@ dotnet test --filter-class ChatBotRAGAPI.Tests.TextChunkerTests  # one class
 ```
 
 Tests use xUnit v3 on Microsoft.Testing.Platform (enabled in `global.json`) and run on every push via GitHub Actions.
+To run the same build and tests on your machine before every `git push`, enable the hook once per clone:
+`git config core.hooksPath .githooks` (skip it in an emergency with `git push --no-verify`).
 Architecture notes for contributors are in [CLAUDE.md](CLAUDE.md).
 
 ## Limitations

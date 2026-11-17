@@ -1,0 +1,14 @@
+#!/bin/sh
+# Builds and tests before every push, on this machine: the free stand-in for CI (and a safety net with it).
+# Enable once per clone:   git config core.hooksPath .githooks
+# Skip in an emergency:    git push --no-verify
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+echo "pre-push: building (warnings are errors, as in CI)..."
+dotnet build ChatBotRAGAPI.slnx -warnaserror -v q -nologo
+
+echo "pre-push: running the tests..."
+dotnet test --no-build
+
+echo "pre-push: all good, pushing."

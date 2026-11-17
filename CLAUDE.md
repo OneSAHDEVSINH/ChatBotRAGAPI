@@ -22,6 +22,8 @@ ollama list                                                 # models must match 
 
 `appsettings.json` names the locally installed models `text-embedding-nomic:latest` (a nomic-embed-text build, 768 dims) and `gpt-5-qwen3:latest` (qwen3 8B). On a machine without them, pull e.g. `nomic-embed-text` and a chat model and override the names via config/env (`Rag__EmbeddingModel`, `Rag__ChatModel`); a different embedding model needs `EmbeddingDimensions` and `MinScore` recalibrated.
 
+`.githooks/pre-push` builds with `-warnaserror` and runs all tests before a push (enable per clone with `git config core.hooksPath .githooks`; enabled in this clone). It is LF-only via `.gitattributes`; keep hooks that way.
+
 `global.json` opts `dotnet test` into Microsoft.Testing.Platform (required for xUnit v3 on the .NET 10 SDK), so use MTP-style filters, not `--filter`. Unit tests cover services with fakes/`StubHttpHandler`; `ApiTests` boot the real app through `RagApiFactory` (`WebApplicationFactory<Program>` with in-memory store + local AI fallback + temp `DataDirectory`, set via `UseSetting` so `Program.cs` sees them before backends are chosen).
 
 Architecture diagram: `docs/architecture.html` (diagram-design skill) with `docs/architecture.png` embedded in the README; after editing the HTML, re-export the PNG at 2x so the two stay in sync.
