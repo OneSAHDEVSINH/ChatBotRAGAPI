@@ -102,7 +102,7 @@ public class ChatUiTests : IDisposable
         Assert.DoesNotContain("<style", html);
         Assert.DoesNotMatch(@"\sstyle=""", html);
         Assert.DoesNotMatch(@"\son[a-z]+=""", html);
-        foreach (var id in new[] { "key-form", "usage-kpis", "usage-chart", "usage-unanswered", "backup-download", "restore-form", "audit", "upload-form", "crawl-form", "schedule-form", "schedules", "jobs", "docs", "feedback", "checks" })
+        foreach (var id in new[] { "key-form", "kb-select", "kb-form", "kbs", "usage-kpis", "usage-chart", "usage-unanswered", "backup-download", "restore-form", "audit", "upload-form", "crawl-form", "schedule-form", "schedules", "jobs", "docs", "feedback", "checks" })
             Assert.Contains($"id=\"{id}\"", html);
 
         var js = await _client.GetStringAsync("/admin.js", Ct);
@@ -123,6 +123,9 @@ public class ChatUiTests : IDisposable
         Assert.DoesNotContain("innerHTML", js);
         Assert.Contains("e.origin === botOrigin", js); // only the bot may close the panel
         Assert.Contains("embed=1", js);
+        Assert.Contains("data", js);
+        Assert.Contains("knowledgeBase", js);           // data-knowledge-base picks the knowledge base
+        Assert.Contains("#key=", js);                   // a chat key travels in the fragment, never to a server
     }
 
     [Fact]

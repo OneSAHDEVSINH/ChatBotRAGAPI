@@ -20,36 +20,36 @@ public sealed class DocumentRegistryTests : IDisposable
     {
         var ids = new[] { Guid.NewGuid(), Guid.NewGuid() };
         var registry = Create();
-        await registry.SaveTextAsync("https://example.com/a?b=c", "page text", Ct);
-        registry.Set("https://example.com/a?b=c", "url", ids);
+        await registry.SaveTextAsync("default", "https://example.com/a?b=c", "page text", Ct);
+        registry.Set("default", "https://example.com/a?b=c", "url", ids);
 
         var reloaded = Create();
         var entry = Assert.Single(reloaded.List());
         Assert.Equal("https://example.com/a?b=c", entry.Source);
         Assert.Equal("url", entry.SourceType);
         Assert.Equal(ids, entry.ChunkIds);
-        Assert.Equal("page text", await File.ReadAllTextAsync(reloaded.TextPath(entry.Source), Ct));
+        Assert.Equal("page text", await File.ReadAllTextAsync(reloaded.TextPath("default", entry.Source), Ct));
     }
 
     [Fact]
     public async Task Remove_deletes_entry_and_text()
     {
         var registry = Create();
-        await registry.SaveTextAsync("a.txt", "x", Ct);
-        registry.Set("a.txt", "file", []);
+        await registry.SaveTextAsync("default", "a.txt", "x", Ct);
+        registry.Set("default", "a.txt", "file", []);
 
-        Assert.True(registry.Remove("a.txt"));
-        Assert.False(registry.Remove("a.txt"));
-        Assert.Null(Create().Get("a.txt"));
-        Assert.False(File.Exists(registry.TextPath("a.txt")));
+        Assert.True(registry.Remove("default", "a.txt"));
+        Assert.False(registry.Remove("default", "a.txt"));
+        Assert.Null(Create().Get("default", "a.txt"));
+        Assert.False(File.Exists(registry.TextPath("default", "a.txt")));
     }
 
     [Fact]
     public void Text_paths_are_file_name_safe_and_distinct()
     {
         var registry = Create();
-        var a = registry.TextPath("https://example.com/a/b?c=<d>");
-        var b = registry.TextPath("https://example.com/a/b?c=<e>");
+        var a = registry.TextPath("default", "https://example.com/a/b?c=<d>");
+        var b = registry.TextPath("default", "https://example.com/a/b?c=<e>");
         Assert.NotEqual(a, b);
         Assert.Equal(Path.Combine(_dir, "documents"), Path.GetDirectoryName(a));
     }

@@ -71,14 +71,14 @@ public sealed class QdrantIntegrationTests(QdrantFixture qdrant) : IClassFixture
 
         await store.UpsertAsync([Point(1, [1, 0, 0, 0], "east"), Point(2, [0, 1, 0, 0], "north"), Point(3, [0.9f, 0.1f, 0, 0], "east-ish")], Ct);
 
-        var hits = await store.SearchAsync([1, 0, 0, 0], 2, Ct);
+        var hits = await store.SearchAsync([1, 0, 0, 0], 2, "default", Ct);
         Assert.Equal(["east", "east-ish"], hits.Select(h => h.Text));
         Assert.Equal("doc.txt", hits[0].Source);
         Assert.Equal(1.0, hits[0].Score, 3);
 
         await store.UpsertAsync([Point(1, [0, 0, 1, 0], "moved")], Ct); // same id replaces the point
         await store.DeleteAsync([Point(3, [0, 0, 0, 0], "").Id], Ct);
-        hits = await store.SearchAsync([1, 0, 0, 0], 3, Ct);
+        hits = await store.SearchAsync([1, 0, 0, 0], 3, "default", Ct);
         Assert.DoesNotContain(hits, h => h.Text is "east" or "east-ish");
         Assert.Contains(hits, h => h.Text == "moved");
     }

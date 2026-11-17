@@ -18,5 +18,6 @@ public interface IVectorStore
     /// <summary>Removes points by id; unknown ids are ignored.</summary>
     Task DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
 
-    Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, CancellationToken ct);
+    /// <summary>Nearest points of one knowledge base only (points stored before knowledge bases count as "default").</summary>
+    Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, string knowledgeBase, CancellationToken ct);
 }

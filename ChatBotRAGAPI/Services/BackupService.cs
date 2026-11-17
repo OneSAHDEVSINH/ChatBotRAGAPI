@@ -20,7 +20,7 @@ public sealed partial class BackupService
     public const int Version = 1;
 
     /// <summary>Files outside documents/ that a backup carries. audit.jsonl is kept for the record but never restored.</summary>
-    private static readonly string[] StateFiles = ["schedules.json", "feedback.jsonl", "usage.jsonl"];
+    private static readonly string[] StateFiles = ["knowledge-bases.json", "schedules.json", "feedback.jsonl", "usage.jsonl"];
     private const string AuditFile = "audit.jsonl";
     private const long MaxUncompressedBytes = 4L * 1024 * 1024 * 1024;
     private const int MaxEntries = 200_000;
@@ -31,18 +31,21 @@ public sealed partial class BackupService
     private readonly IVectorStore _store;
     private readonly IngestionQueue _queue;
     private readonly CrawlScheduler _scheduler;
+    private readonly KnowledgeBaseStore _knowledgeBases;
     private readonly IEmbeddingClient _embedding;
     private readonly TimeProvider _time;
     private readonly ILogger<BackupService>? _logger;
 
     public BackupService(IOptions<RagOptions> options, DocumentRegistry registry, IVectorStore store, IngestionQueue queue,
-        CrawlScheduler scheduler, IEmbeddingClient embedding, TimeProvider? time = null, ILogger<BackupService>? logger = null)
+        CrawlScheduler scheduler, KnowledgeBaseStore knowledgeBases, IEmbeddingClient embedding, TimeProvider? time = null,
+        ILogger<BackupService>? logger = null)
     {
         _options = options.Value;
         _registry = registry;
         _store = store;
         _queue = queue;
         _scheduler = scheduler;
+        _knowledgeBases = knowledgeBases;
         _embedding = embedding;
         _time = time ?? TimeProvider.System;
         _logger = logger;
@@ -147,18 +150,19 @@ public sealed partial class BackupService
                     else File.Delete(target);
                 }
                 _scheduler.Reload();
+                _knowledgeBases.Reload();
             }
 
             var jobs = 0;
             foreach (var doc in _registry.List())
             {
-                var text = _registry.TextPath(doc.Source);
+                var text = _registry.TextPath(doc.KnowledgeBase, doc.Source);
                 if (!File.Exists(text))
                 {
                     _logger?.LogWarning("The backup has no text for {Source}; it cannot be re-indexed", doc.Source);
                     continue;
                 }
-                _queue.Enqueue(IngestionWorker.ReindexSourceType, text, doc.Source);
+                _queue.Enqueue(IngestionWorker.ReindexSourceType, text, doc.Source, knowledgeBase: doc.KnowledgeBase);
                 jobs++;
             }
 

@@ -19,17 +19,19 @@ public sealed class DocumentsController : ControllerBase
         _vectorStore = vectorStore;
     }
 
-    /// <summary>Lists all ingested documents. A document's source is its original file name or URL.</summary>
-    /// <response code="200">The documents, with their chunk counts and ingestion times.</response>
+    /// <summary>Lists ingested documents. A document's source is its original file name or URL.</summary>
+    /// <param name="knowledgeBase">Only this knowledge base's documents; omitted = all knowledge bases.</param>
+    /// <response code="200">The documents, with their knowledge base, chunk counts and ingestion times.</response>
     /// <response code="401">Missing or wrong X-Api-Key (when Security:ApiKey is set).</response>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public ActionResult<IReadOnlyList<DocumentInfo>> List() =>
-        Ok(_registry.List().Select(e => e.ToInfo()).ToList());
+    public ActionResult<IReadOnlyList<DocumentInfo>> List([FromQuery] string? knowledgeBase = null) =>
+        Ok(_registry.List(string.IsNullOrWhiteSpace(knowledgeBase) ? null : knowledgeBase.Trim()).Select(e => e.ToInfo()).ToList());
 
     /// <summary>Removes a document and all of its chunks.</summary>
     /// <param name="source">The document's source exactly as listed: a file name or a full URL.</param>
+    /// <param name="knowledgeBase">The knowledge base it is in; omitted = "default".</param>
     /// <param name="ct">Request cancellation.</param>
     /// <response code="204">Removed.</response>
     /// <response code="400">source is missing.</response>
@@ -40,18 +42,19 @@ public sealed class DocumentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Delete([FromQuery] string source, CancellationToken ct)
+    public async Task<IActionResult> Delete([FromQuery] string source, CancellationToken ct, [FromQuery] string? knowledgeBase = null)
     {
         HttpContext.Items[AuditLog.TargetItem] = source;
         if (string.IsNullOrWhiteSpace(source)) return BadRequest("source is required.");
 
         using (await _registry.LockAsync(ct))
         {
-            var entry = _registry.Get(source);
+            var kb = KnowledgeBaseStore.Normalize(knowledgeBase);
+            var entry = _registry.Get(kb, source);
             if (entry is null) return NotFound();
 
             await _vectorStore.DeleteAsync(entry.ChunkIds.ToList(), ct);
-            _registry.Remove(source);
+            _registry.Remove(kb, source);
         }
 
         return NoContent();

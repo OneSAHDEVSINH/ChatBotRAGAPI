@@ -13,7 +13,13 @@
   <header class="topbar">
     <div class="admin-shell topbar__inner">
       <h1 class="wordmark">Knowledge Chat admin</h1>
-      <a class="btn btn--card btn--small" href="./">Back to chat</a>
+      <div class="topbar__actions">
+        <label for="kb-select" class="kb-label">Knowledge base</label>
+        <select id="kb-select" class="field field--select field--compact" title="Uploads, crawls, schedules, documents and usage below apply to this knowledge base">
+          <option value="default">default</option>
+        </select>
+        <a id="chat-link" class="btn btn--card btn--small" href="./">Open chat</a>
+      </div>
     </div>
   </header>
 
@@ -36,6 +42,34 @@
         <button type="button" id="refresh-status" class="btn btn--card btn--small">Refresh</button>
       </div>
       <ul id="checks" class="checks"></ul>
+    </section>
+
+    <section class="panel stock" aria-labelledby="kbs-title">
+      <div class="panel__head">
+        <h2 id="kbs-title">Knowledge bases</h2>
+        <button type="button" id="refresh-kbs" class="btn btn--card btn--small">Refresh</button>
+      </div>
+      <p class="hint">Separate sets of documents, searched separately. A private one needs its chat key; give staff the chat link with the key, or put it on the widget.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Id</th><th scope="col">Name</th><th scope="col">Chat</th><th scope="col" class="num">Documents</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+          <tbody id="kbs"></tbody>
+        </table>
+      </div>
+      <form id="kb-form" class="row">
+        <label for="kb-id" class="visually-hidden">Id</label>
+        <input id="kb-id" class="field" placeholder="id, e.g. internal" pattern="[a-z0-9][a-z0-9\-]{0,39}" maxlength="40" required>
+        <label for="kb-name" class="visually-hidden">Name</label>
+        <input id="kb-name" class="field" placeholder="Name (optional)" maxlength="80">
+        <label class="check"><input id="kb-private" type="checkbox"> Private (needs a key)</label>
+        <button type="submit" class="btn btn--ink btn--small">Create</button>
+      </form>
+      <div id="kb-key" class="key-reveal" hidden>
+        <p><strong>Chat key for <span id="kb-key-id"></span>.</strong> Copy it now: it is not shown again.</p>
+        <code id="kb-key-value"></code>
+        <p class="hint">Chat link: <code id="kb-key-link"></code></p>
+      </div>
+      <p id="kbs-status" class="message" role="status"></p>
     </section>
 
     <section class="panel stock" aria-labelledby="usage-title">

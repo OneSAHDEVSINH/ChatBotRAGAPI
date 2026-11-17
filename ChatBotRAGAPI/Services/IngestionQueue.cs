@@ -38,13 +38,14 @@ public sealed class IngestionQueue
         Save();
     }
 
-    public Guid Enqueue(string sourceType, string sourceValue, string sourceName, int maxPages = 1, bool removeMissing = false)
+    public Guid Enqueue(string sourceType, string sourceValue, string sourceName, int maxPages = 1, bool removeMissing = false,
+        string knowledgeBase = KnowledgeBaseStore.Default)
     {
         PruneExpired();
 
-        var job = new IngestionJob(Guid.NewGuid(), sourceType, sourceValue, sourceName, maxPages, removeMissing);
+        var job = new IngestionJob(Guid.NewGuid(), sourceType, sourceValue, sourceName, maxPages, removeMissing, knowledgeBase);
         var now = _time.GetUtcNow();
-        _status[job.JobId] = new JobInfo(job.JobId, sourceType, sourceName, "Queued", null, now, now);
+        _status[job.JobId] = new JobInfo(job.JobId, sourceType, sourceName, "Queued", null, now, now, knowledgeBase);
         Save();
         _channel.Writer.TryWrite(job);
         return job.JobId;

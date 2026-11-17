@@ -114,6 +114,7 @@ builder.Services.AddSingleton<RagService>();
 builder.Services.AddSingleton<EvalService>();
 builder.Services.AddSingleton<FeedbackStore>();
 builder.Services.AddSingleton<UsageLog>();
+builder.Services.AddSingleton<KnowledgeBaseStore>();
 builder.Services.AddSingleton<AuditLog>();
 builder.Services.AddScoped<AuditFilter>();
 builder.Services.AddSingleton<BackupService>();

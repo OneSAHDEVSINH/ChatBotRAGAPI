@@ -30,6 +30,13 @@ public sealed class ApiKeyAttribute : Attribute, IAuthorizationFilter
             $"{http.Request.Method} {http.Request.Path}{(provided.Length == 0 ? " (no key)" : " (wrong key)")}", StatusCodes.Status401Unauthorized);
     }
 
+    /// <summary>True when Security:ApiKey is set and the request carries it (so an unset key never counts as "valid").</summary>
+    public static bool IsValidManagementKey(HttpContext http)
+    {
+        var expected = http.RequestServices.GetRequiredService<IOptions<SecurityOptions>>().Value.ApiKey;
+        return !string.IsNullOrEmpty(expected) && Matches(http.Request.Headers[HeaderName].ToString(), expected);
+    }
+
     /// <summary>Constant-time comparison, so response timing doesn't reveal how much of the key was right.</summary>
     public static bool Matches(string provided, string expected) =>
         CryptographicOperations.FixedTimeEquals(

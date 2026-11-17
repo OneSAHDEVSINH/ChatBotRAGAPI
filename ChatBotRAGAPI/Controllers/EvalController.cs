@@ -31,7 +31,7 @@ public sealed class EvalController : ControllerBase
     public async Task<ActionResult<CalibrationReport>> Calibrate([FromBody] EvalRequest request, CancellationToken ct)
     {
         if (Validate(request) is { } error) return BadRequest(error);
-        return Ok(await _eval.CalibrateAsync(request.Cases, ct));
+        return Ok(await _eval.CalibrateAsync(request.Cases, ct, KnowledgeBaseStore.Normalize(request.KnowledgeBase)));
     }
 
     /// <summary>Asks each question for real and checks retrieval, facts, citations and refusals.</summary>
@@ -52,7 +52,7 @@ public sealed class EvalController : ControllerBase
     public async Task<ActionResult<AnswerEvalReport>> Answers([FromBody] EvalRequest request, CancellationToken ct)
     {
         if (Validate(request) is { } error) return BadRequest(error);
-        return Ok(await _eval.EvaluateAnswersAsync(request.Cases, ct));
+        return Ok(await _eval.EvaluateAnswersAsync(request.Cases, ct, KnowledgeBaseStore.Normalize(request.KnowledgeBase)));
     }
 
     private static string? Validate(EvalRequest request)

@@ -11,8 +11,13 @@ namespace ChatBotRAGAPI.Controllers;
 public sealed class SchedulesController : ControllerBase
 {
     private readonly CrawlScheduler _scheduler;
+    private readonly KnowledgeBaseStore _knowledgeBases;
 
-    public SchedulesController(CrawlScheduler scheduler) => _scheduler = scheduler;
+    public SchedulesController(CrawlScheduler scheduler, KnowledgeBaseStore knowledgeBases)
+    {
+        _scheduler = scheduler;
+        _knowledgeBases = knowledgeBases;
+    }
 
     /// <summary>Scheduled re-crawls, with when each runs next and how its last run went.</summary>
     /// <response code="200">The schedules, oldest first.</response>
@@ -34,6 +39,8 @@ public sealed class SchedulesController : ControllerBase
     public ActionResult<CrawlScheduleInfo> Create([FromBody] CrawlScheduleRequest request)
     {
         HttpContext.Items[AuditLog.TargetItem] = request.Url;
+        var kb = KnowledgeBaseStore.Normalize(request.KnowledgeBase);
+        if (!_knowledgeBases.Exists(kb)) return BadRequest($"Unknown knowledge base '{kb}'.");
         var (schedule, error) = _scheduler.Add(request);
         return error is not null ? BadRequest(error) : StatusCode(StatusCodes.Status201Created, schedule);
     }

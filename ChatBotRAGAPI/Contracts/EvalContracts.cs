@@ -6,7 +6,8 @@ namespace ChatBotRAGAPI.Contracts;
 public sealed record EvalCase(string Question, string? ExpectedSource = null, IReadOnlyList<string>? MustContain = null);
 
 /// <summary>The same case list drives both <c>/api/eval/calibrate</c> and <c>/api/eval/answers</c> (see testdata/eval.json).</summary>
-public sealed record EvalRequest(IReadOnlyList<EvalCase> Cases);
+/// <param name="KnowledgeBase">Which knowledge base to evaluate; omitted = "default".</param>
+public sealed record EvalRequest(IReadOnlyList<EvalCase> Cases, string? KnowledgeBase = null);
 
 /// <param name="BestScore">For an answerable case, the best cosine of a passage from the expected source; for an
 /// off-topic case, the best cosine of any passage. Null when the expected source is not in the top candidates.</param>

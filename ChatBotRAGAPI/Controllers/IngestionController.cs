@@ -13,13 +13,18 @@ namespace ChatBotRAGAPI.Controllers;
 public sealed class IngestionController : ControllerBase
 {
     private readonly IngestionQueue _queue;
+    private readonly KnowledgeBaseStore _knowledgeBases;
     private readonly RagOptions _options;
 
-    public IngestionController(IngestionQueue queue, IOptions<RagOptions> options)
+    public IngestionController(IngestionQueue queue, KnowledgeBaseStore knowledgeBases, IOptions<RagOptions> options)
     {
         _queue = queue;
+        _knowledgeBases = knowledgeBases;
         _options = options.Value;
     }
+
+    private string? UnknownKnowledgeBase(string kb) =>
+        _knowledgeBases.Exists(kb) ? null : $"Unknown knowledge base '{kb}'. Create it first (POST /api/knowledge-bases).";
 
     /// <summary>Ingests a public web page, or crawls a site starting from it (maxPages).</summary>
     /// <remarks>
@@ -29,7 +34,7 @@ public sealed class IngestionController : ControllerBase
     /// with removeMissing, pages of that site the crawl no longer finds are deleted.
     /// </remarks>
     /// <response code="202">Queued; returns the job id.</response>
-    /// <response code="400">Not an http(s) URL, a private/loopback address, or maxPages out of range.</response>
+    /// <response code="400">Not an http(s) URL, a private/loopback address, maxPages out of range, or an unknown knowledge base.</response>
     /// <response code="401">Missing or wrong X-Api-Key (when Security:ApiKey is set).</response>
     [HttpPost("scrape")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
@@ -41,8 +46,10 @@ public sealed class IngestionController : ControllerBase
         var maxPages = request.MaxPages ?? 1;
         if (ScrapeTarget.Validate(request.Url, maxPages, request.RemoveMissing, _options.MaxCrawlPages, out var uri) is { } error)
             return BadRequest(error);
+        var kb = KnowledgeBaseStore.Normalize(request.KnowledgeBase);
+        if (UnknownKnowledgeBase(kb) is { } unknown) return BadRequest(unknown);
 
-        var jobId = _queue.Enqueue("url", request.Url, uri!.ToString(), maxPages, request.RemoveMissing);
+        var jobId = _queue.Enqueue("url", request.Url, uri!.ToString(), maxPages, request.RemoveMissing, kb);
         return Accepted(new EnqueueResponse(jobId, "Queued"));
     }
 
@@ -52,19 +59,22 @@ public sealed class IngestionController : ControllerBase
     /// file name, so uploading a file with the same name again replaces it. Scanned PDFs need Rag:OcrModel.
     /// </remarks>
     /// <param name="file">The file (multipart form field "file").</param>
+    /// <param name="knowledgeBase">Form field: which knowledge base it goes into; omitted = "default".</param>
     /// <param name="ct">Request cancellation.</param>
     /// <response code="202">Queued; returns the job id.</response>
-    /// <response code="400">Empty file or unsupported type.</response>
+    /// <response code="400">Empty file, unsupported type, or an unknown knowledge base.</response>
     /// <response code="401">Missing or wrong X-Api-Key (when Security:ApiKey is set).</response>
     [HttpPost("upload")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [RequestSizeLimit(50_000_000)]
-    public async Task<ActionResult<EnqueueResponse>> Upload(IFormFile file, CancellationToken ct)
+    public async Task<ActionResult<EnqueueResponse>> Upload(IFormFile file, CancellationToken ct, [FromForm] string? knowledgeBase = null)
     {
         HttpContext.Items[AuditLog.TargetItem] = file?.FileName;
         if (file is null || file.Length == 0) return BadRequest("Empty file.");
+        var kb = KnowledgeBaseStore.Normalize(knowledgeBase);
+        if (UnknownKnowledgeBase(kb) is { } unknown) return BadRequest(unknown);
 
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!FileTextExtractor.SupportedExtensions.Contains(ext))
@@ -88,7 +98,7 @@ public sealed class IngestionController : ControllerBase
         } // fully closed here
 
         // The saved name is a GUID; keep the client's file name (sans any path) for citations.
-        var jobId = _queue.Enqueue("file", savedPath, Path.GetFileName(file.FileName));
+        var jobId = _queue.Enqueue("file", savedPath, Path.GetFileName(file.FileName), knowledgeBase: kb);
         return Accepted(new EnqueueResponse(jobId, "Queued"));
     }
 

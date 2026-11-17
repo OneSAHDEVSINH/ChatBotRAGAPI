@@ -9,6 +9,14 @@ namespace ChatBotRAGAPI.Services;
 
 public sealed class QdrantClient : IVectorStore
 {
+    /// <summary>
+    /// Points carry their knowledge base as payload "kb". Points written before knowledge bases have none and belong to
+    /// "default", so its filter also accepts an empty kb.
+    /// </summary>
+    private static object KnowledgeBaseFilter(string knowledgeBase) => knowledgeBase == KnowledgeBaseStore.Default
+        ? new { should = new object[] { new { key = "kb", match = new { value = knowledgeBase } }, new { is_empty = new { key = "kb" } } } }
+        : new { must = new object[] { new { key = "kb", match = new { value = knowledgeBase } } } };
+
     private readonly HttpClient _httpClient;
     private readonly RagOptions _options;
 
@@ -92,7 +100,7 @@ public sealed class QdrantClient : IVectorStore
             {
                 id = p.Id.ToString(),
                 vector = p.Vector,
-                payload = new { text = p.Text, source = p.Source }
+                payload = new { text = p.Text, source = p.Source, kb = p.KnowledgeBase }
             })
         });
 
@@ -118,9 +126,9 @@ public sealed class QdrantClient : IVectorStore
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, CancellationToken ct)
+    public async Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, string knowledgeBase, CancellationToken ct)
     {
-        var body = JsonSerializer.Serialize(new { vector, limit = topK, with_payload = true });
+        var body = JsonSerializer.Serialize(new { vector, limit = topK, with_payload = true, filter = KnowledgeBaseFilter(knowledgeBase) });
 
         using var response = await _httpClient.PostAsync(
             $"/collections/{_options.QdrantCollection}/points/search",

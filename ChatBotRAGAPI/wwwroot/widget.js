@@ -2,7 +2,12 @@
  * Knowledge Chat widget: a chat button on any website, opening the chat in a panel.
  *
  *   <script src="https://bot.example.com/widget.js" defer
- *           data-label="Ask us" data-title="Ask Giriraj Digital" data-position="right"></script>
+ *           data-label="Ask us" data-title="Ask Giriraj Digital" data-position="right"
+ *           data-knowledge-base="website"></script>
+ *
+ * data-knowledge-base picks the knowledge base (default: "default"). For a private one add data-chat-key: it is
+ * passed in the frame address's #fragment, which is never sent to any server, but anyone who can view this page can
+ * read it, so use private knowledge bases only on pages that are themselves private (an intranet).
  *
  * The chat itself runs in a frame from the bot's own address, so the host page's styles and scripts can't touch it
  * (and it can't touch them). The bot only allows the frame on sites listed in its Widget:AllowedOrigins setting.
@@ -20,7 +25,10 @@
   const label = (script.dataset.label || "Ask us").slice(0, 40);
   const title = (script.dataset.title || "").slice(0, 60);
   const side = script.dataset.position === "left" ? "left" : "right";
-  const chatUrl = new URL(`./?embed=1${title ? `&title=${encodeURIComponent(title)}` : ""}`, base).href;
+  const kb = (script.dataset.knowledgeBase || "").trim();
+  const chatKey = (script.dataset.chatKey || "").trim();
+  const chatUrl = new URL(`./?embed=1${title ? `&title=${encodeURIComponent(title)}` : ""}${kb ? `&kb=${encodeURIComponent(kb)}` : ""}`
+    + (chatKey ? `#key=${encodeURIComponent(chatKey)}` : ""), base).href;
 
   const ink = "#2b2421", paper = "#fbf8f4", shade = "0 6px 20px -6px rgba(43, 36, 33, 0.35)";
   const phone = window.matchMedia("(max-width: 480px)");

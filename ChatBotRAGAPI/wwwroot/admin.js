@@ -3,7 +3,12 @@
 "use strict";
 
 const KEY_STORAGE = "knowledge-chat-admin-key";
+const KB_STORAGE = "knowledge-chat-admin-kb";
 const $ = (id) => document.getElementById(id);
+
+/** The knowledge base the sections below work on (top bar select). */
+const currentKb = () => $("kb-select").value || "default";
+const kbQuery = () => `knowledgeBase=${encodeURIComponent(currentKb())}`;
 
 let apiKey = "";
 try { apiKey = sessionStorage.getItem(KEY_STORAGE) || ""; } catch { /* storage unavailable */ }
@@ -119,7 +124,7 @@ async function loadJobs() {
 
 async function loadDocuments() {
   try {
-    const docs = await api("api/documents");
+    const docs = await api(`api/documents?${kbQuery()}`);
     $("docs").replaceChildren(...docs.map((doc) => {
       const tr = document.createElement("tr");
       const actions = document.createElement("td");
@@ -145,7 +150,7 @@ async function deleteDocument(source, button) {
   if (!window.confirm(`Delete "${source}" and all its passages? The bot stops answering from it.`)) return;
   button.disabled = true;
   try {
-    await api(`api/documents?source=${encodeURIComponent(source)}`, { method: "DELETE" });
+    await api(`api/documents?source=${encodeURIComponent(source)}&${kbQuery()}`, { method: "DELETE" });
     say("docs-status", `Deleted ${source}.`, "ok");
     await loadDocuments();
   } catch (err) {
@@ -168,6 +173,7 @@ $("upload-form").addEventListener("submit", async (e) => {
       say("add-status", `Uploading ${file.name}…`);
       const form = new FormData();
       form.append("file", file);
+      form.append("knowledgeBase", currentKb());
       await api("api/ingestion/upload", { method: "POST", body: form });
       queued++;
     }
@@ -190,7 +196,7 @@ $("crawl-form").addEventListener("submit", async (e) => {
     await api("api/ingestion/scrape", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: $("crawl-url").value.trim(), maxPages, removeMissing: maxPages > 1 && $("crawl-remove").checked }),
+      body: JSON.stringify({ url: $("crawl-url").value.trim(), maxPages, removeMissing: maxPages > 1 && $("crawl-remove").checked, knowledgeBase: currentKb() }),
     });
     say("add-status", "Crawl queued. Follow it in Jobs below.", "ok");
   } catch (err) {
@@ -217,7 +223,7 @@ function actionButton(text, label, className, onClick) {
 
 async function loadSchedules() {
   try {
-    const schedules = await api("api/schedules");
+    const schedules = (await api("api/schedules")).filter((s) => (s.knowledgeBase ?? "default") === currentKb());
     $("schedules").replaceChildren(...schedules.map((s) => {
       const tr = document.createElement("tr");
       const last = document.createElement("td");
@@ -254,6 +260,7 @@ $("schedule-form").addEventListener("submit", async (e) => {
         maxPages,
         removeMissing: maxPages > 1 && $("schedule-remove").checked,
         intervalHours: Number($("schedule-interval").value),
+        knowledgeBase: currentKb(),
       }),
     });
     say("schedules-status", "Scheduled. The first crawl starts within a minute.", "ok");
@@ -291,6 +298,122 @@ async function deleteSchedule(schedule, button) {
     button.disabled = false;
     handle(err, "schedules-status");
   }
+}
+
+// ---------- knowledge bases ----------
+
+function chatLink(id, key) {
+  const url = new URL("./", location.href);
+  if (id !== "default") url.searchParams.set("kb", id);
+  if (key) url.hash = `key=${encodeURIComponent(key)}`;
+  return url.href;
+}
+
+function showKey(id, key) {
+  $("kb-key-id").textContent = id;
+  $("kb-key-value").textContent = key;
+  $("kb-key-link").textContent = chatLink(id, key);
+  $("kb-key").hidden = false;
+}
+
+function fillSelector(bases) {
+  const wanted = currentKb();
+  $("kb-select").replaceChildren(...bases.map((b) => {
+    const option = document.createElement("option");
+    option.value = b.id;
+    option.textContent = b.id === b.name ? b.id : `${b.id} (${b.name})`;
+    return option;
+  }));
+  $("kb-select").value = bases.some((b) => b.id === wanted) ? wanted : "default";
+  $("chat-link").href = chatLink(currentKb());
+}
+
+async function loadKnowledgeBases() {
+  try {
+    const bases = await api("api/knowledge-bases");
+    fillSelector(bases);
+    $("kbs").replaceChildren(...bases.map((b) => {
+      const tr = document.createElement("tr");
+      const actions = document.createElement("td");
+      actions.className = "actions";
+      if (b.private) actions.append(actionButton("New key", `Issue a new chat key for ${b.id}`, "btn--card", (btn) => updateKb(b.id, { newKey: true }, btn)));
+      actions.append(actionButton(b.private ? "Make public" : "Make private", `${b.private ? "Make public" : "Make private"}: ${b.id}`, "btn--card",
+        (btn) => updateKb(b.id, { private: !b.private }, btn)));
+      if (b.id !== "default") actions.append(actionButton("Delete", `Delete knowledge base ${b.id}`, "btn--danger", (btn) => deleteKb(b, btn)));
+      tr.append(cell(b.id, "mono"), cell(b.name, "wrap"), cell(b.private ? "Private (key)" : "Public"), cell(String(b.documents), "num"), actions);
+      return tr;
+    }));
+    clearError("kbs-status");
+  } catch (err) {
+    handle(err, "kbs-status");
+  }
+}
+
+$("kb-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const button = submitButton(e);
+  button.disabled = true;
+  try {
+    const id = $("kb-id").value.trim();
+    const result = await api("api/knowledge-bases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name: $("kb-name").value.trim() || null, private: $("kb-private").checked }),
+    });
+    $("kb-form").reset();
+    if (result.chatKey) showKey(id, result.chatKey);
+    else $("kb-key").hidden = true;
+    say("kbs-status", `Created ${id}.`, "ok");
+    await loadKnowledgeBases();
+    $("kb-select").value = id;
+    changeKb();
+  } catch (err) {
+    handle(err, "kbs-status");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+async function updateKb(id, change, button) {
+  if (change.newKey && !window.confirm(`Issue a new key for ${id}? The current key stops working at once.`)) return;
+  if (change.private === false && !window.confirm(`Make ${id} public? Anyone who can reach the chat can then ask it.`)) return;
+  button.disabled = true;
+  try {
+    const result = await api(`api/knowledge-bases/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(change),
+    });
+    if (result.chatKey) showKey(id, result.chatKey);
+    say("kbs-status", `Updated ${id}.`, "ok");
+    await loadKnowledgeBases();
+  } catch (err) {
+    button.disabled = false;
+    handle(err, "kbs-status");
+  }
+}
+
+async function deleteKb(kb, button) {
+  if (!window.confirm(`Delete the knowledge base ${kb.id}? It must have no documents.`)) return;
+  button.disabled = true;
+  try {
+    await api(`api/knowledge-bases/${encodeURIComponent(kb.id)}`, { method: "DELETE" });
+    say("kbs-status", `Deleted ${kb.id}.`, "ok");
+    await loadKnowledgeBases();
+    changeKb();
+  } catch (err) {
+    button.disabled = false;
+    handle(err, "kbs-status");
+  }
+}
+
+/** Everything scoped to the knowledge base reloads when it changes. */
+function changeKb() {
+  try { sessionStorage.setItem(KB_STORAGE, currentKb()); } catch { /* storage unavailable */ }
+  $("chat-link").href = chatLink(currentKb());
+  loadDocuments();
+  loadSchedules();
+  loadUsage();
 }
 
 // ---------- usage ----------
@@ -386,7 +509,7 @@ function drawChart(days) {
 
 async function loadUsage() {
   try {
-    const report = await api(`api/usage?days=${$("usage-days").value}`);
+    const report = await api(`api/usage?days=${$("usage-days").value}&${kbQuery()}`);
     const notAnswered = report.noData + report.declined;
     $("usage-kpis").replaceChildren(
       kpi("Questions", String(report.questions)),
@@ -512,7 +635,8 @@ async function loadFeedback() {
 // ---------- key ----------
 
 function loadAll() {
-  ["add-status", "docs-status", "schedules-status", "usage-status", "audit-status", "backup-status"].forEach(clearError);
+  loadKnowledgeBases();
+  ["add-status", "docs-status", "schedules-status", "usage-status", "audit-status", "backup-status", "kbs-status"].forEach(clearError);
   loadStatus();
   loadUsage();
   loadAudit();
@@ -543,6 +667,17 @@ $("refresh-schedules").addEventListener("click", loadSchedules);
 $("refresh-docs").addEventListener("click", loadDocuments);
 $("refresh-feedback").addEventListener("click", loadFeedback);
 $("refresh-usage").addEventListener("click", loadUsage);
+$("refresh-kbs").addEventListener("click", loadKnowledgeBases);
+$("kb-select").addEventListener("change", changeKb);
+try {
+  const saved = sessionStorage.getItem(KB_STORAGE);
+  if (saved) {
+    const option = document.createElement("option");
+    option.value = option.textContent = saved;
+    $("kb-select").replaceChildren(option);
+    $("kb-select").value = saved;
+  }
+} catch { /* storage unavailable */ }
 $("refresh-audit").addEventListener("click", loadAudit);
 $("usage-days").addEventListener("change", loadUsage);
 $("feedback-filter").addEventListener("change", loadFeedback);

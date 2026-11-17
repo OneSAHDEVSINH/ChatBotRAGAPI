@@ -11,12 +11,14 @@
 /// (no longer linked, or answering 404/410). Skipped when the crawl stopped at maxPages, and pages that failed with
 /// a temporary error are kept.
 /// </param>
-public sealed record ScrapeRequest(string Url, int? MaxPages = null, bool RemoveMissing = false);
+/// <param name="KnowledgeBase">Which knowledge base the pages go into; omitted = "default".</param>
+public sealed record ScrapeRequest(string Url, int? MaxPages = null, bool RemoveMissing = false, string? KnowledgeBase = null);
 /// <param name="History">
 /// Earlier turns of this conversation, oldest first (optional). The server keeps no conversation state;
 /// clients send back the previous questions and answers so follow-ups like "and the Pro plan?" make sense.
 /// </param>
-public sealed record AskRequest(string Question, IReadOnlyList<ChatMessage>? History = null);
+/// <param name="KnowledgeBase">Which knowledge base to answer from; omitted = "default". A private one needs its key in the X-Chat-Key header.</param>
+public sealed record AskRequest(string Question, IReadOnlyList<ChatMessage>? History = null, string? KnowledgeBase = null);
 
 /// <param name="Role">"user" or "assistant".</param>
 public sealed record ChatMessage(string Role, string Content);
@@ -56,15 +58,16 @@ public sealed record JobStatusResponse(Guid JobId, string Status, string? Messag
 /// <param name="Status">Queued, Running, Completed or Failed.</param>
 /// <param name="Message">Progress, the crawl summary, or why it failed.</param>
 public sealed record JobInfo(Guid JobId, string SourceType, string Source, string Status, string? Message,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string KnowledgeBase = "default");
 
 /// <param name="SourceValue">What the worker reads: a URL, or the saved upload path.</param>
 /// <param name="SourceName">Human-readable origin stored with each chunk: the URL or the original file name.</param>
 /// <param name="MaxPages">For "url" jobs: pages to crawl starting from SourceValue (1 = that page only).</param>
-public sealed record IngestionJob(Guid JobId, string SourceType, string SourceValue, string SourceName, int MaxPages = 1, bool RemoveMissing = false);
+public sealed record IngestionJob(Guid JobId, string SourceType, string SourceValue, string SourceName, int MaxPages = 1, bool RemoveMissing = false,
+    string KnowledgeBase = "default");
 
 /// <param name="Source">The document key: original file name or URL. Re-ingesting the same source replaces it.</param>
-public sealed record DocumentInfo(string Source, string SourceType, int ChunkCount, DateTimeOffset IngestedAt);
+public sealed record DocumentInfo(string Source, string SourceType, int ChunkCount, DateTimeOffset IngestedAt, string KnowledgeBase = "default");
 
-public sealed record VectorPoint(Guid Id, float[] Vector, string Text, string Source);
+public sealed record VectorPoint(Guid Id, float[] Vector, string Text, string Source, string KnowledgeBase = "default");
 public sealed record SearchHit(string Text, string Source, double Score);

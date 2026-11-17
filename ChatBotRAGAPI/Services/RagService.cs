@@ -47,10 +47,14 @@ public sealed class RagService
     /// <summary>A retrieved passage with how it was found; Cosine is null for keyword-only matches.</summary>
     private sealed record Retrieved(SearchHit Hit, double? Cosine, string Match);
 
-    public async Task<AskResponse> AskAsync(string question, IReadOnlyList<ChatMessage>? history, CancellationToken ct)
+    public Task<AskResponse> AskAsync(string question, IReadOnlyList<ChatMessage>? history, CancellationToken ct) =>
+        AskAsync(question, history, KnowledgeBaseStore.Default, ct);
+
+    /// <param name="knowledgeBase">Only this knowledge base's passages are searched.</param>
+    public async Task<AskResponse> AskAsync(string question, IReadOnlyList<ChatMessage>? history, string knowledgeBase, CancellationToken ct)
     {
         var turns = RecentHistory(history);
-        var relevant = await RetrieveAsync(question, turns, ct);
+        var relevant = await RetrieveAsync(question, turns, knowledgeBase, ct);
 
         // If nothing clears the bar, answer directly instead of paying for an LLM call that can only hallucinate.
         var answer = relevant.Count == 0
@@ -64,10 +68,13 @@ public sealed class RagService
     /// Retrieval runs before this returns, so its failures (e.g. embedding backend down) surface as a normal
     /// HTTP error; only generation happens while the response is streaming.
     /// </summary>
-    public async Task<StreamingAnswer> AskStreamingAsync(string question, IReadOnlyList<ChatMessage>? history, CancellationToken ct)
+    public Task<StreamingAnswer> AskStreamingAsync(string question, IReadOnlyList<ChatMessage>? history, CancellationToken ct) =>
+        AskStreamingAsync(question, history, KnowledgeBaseStore.Default, ct);
+
+    public async Task<StreamingAnswer> AskStreamingAsync(string question, IReadOnlyList<ChatMessage>? history, string knowledgeBase, CancellationToken ct)
     {
         var turns = RecentHistory(history);
-        var relevant = await RetrieveAsync(question, turns, ct);
+        var relevant = await RetrieveAsync(question, turns, knowledgeBase, ct);
 
         var pieces = relevant.Count == 0
             ? Single(NoDataAnswer)
@@ -119,7 +126,7 @@ public sealed class RagService
     /// MinKeywordCoverage of the query terms. Admitted passages are ordered by reciprocal rank fusion of their
     /// positions in each candidate list, so they need no common score scale.
     /// </summary>
-    private async Task<List<Retrieved>> RetrieveAsync(string question, IReadOnlyList<ChatMessage> history, CancellationToken ct)
+    private async Task<List<Retrieved>> RetrieveAsync(string question, IReadOnlyList<ChatMessage> history, string knowledgeBase, CancellationToken ct)
     {
         var query = await SearchQueryAsync(question, history, ct);
         var minScore = _options.EffectiveMinScore;
@@ -129,7 +136,7 @@ public sealed class RagService
         var pool = hybrid ? Math.Max(keep, _options.SearchCandidates) : keep;
 
         var qvec = await _embeddingClient.EmbedAsync(query, ct);
-        var vectorHits = await _vectorStore.SearchAsync(qvec, pool, ct);
+        var vectorHits = await _vectorStore.SearchAsync(qvec, pool, knowledgeBase, ct);
 
         if (!hybrid)
         {
@@ -140,7 +147,7 @@ public sealed class RagService
                 .ToList(), ct);
         }
 
-        var keywordHits = _keywords!.Search(query, pool);
+        var keywordHits = _keywords!.Search(query, pool, knowledgeBase);
 
         // Same chunk text from the same source = same passage (chunk ids are derived from exactly these).
         var fused = new Dictionary<(string Source, string Text), (SearchHit Hit, double? Cosine, bool Semantic, bool Keyword, double Rrf)>();

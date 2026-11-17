@@ -2,7 +2,21 @@
 // All server text is inserted with textContent / text nodes, never parsed as HTML.
 "use strict";
 
-const STORAGE_KEY = "knowledge-chat";
+// Which knowledge base to ask: ?kb=id in the address ("default" when absent). A private one's key comes from the link
+// (#key=..., never sent to the server as part of the URL) or is asked for once, and is kept for this tab only.
+const pageParams = new URLSearchParams(location.search);
+const KB = (pageParams.get("kb") || "default").trim();
+const STORAGE_KEY = KB === "default" ? "knowledge-chat" : `knowledge-chat:${KB}`;
+const CHAT_KEY_STORAGE = `knowledge-chat-key:${KB}`;
+let chatKey = "";
+try {
+  const fromLink = new URLSearchParams(location.hash.slice(1)).get("key");
+  if (fromLink) {
+    sessionStorage.setItem(CHAT_KEY_STORAGE, fromLink);
+    window.history.replaceState(null, "", location.pathname + location.search); // keep the key out of the address bar
+  }
+  chatKey = sessionStorage.getItem(CHAT_KEY_STORAGE) || "";
+} catch { /* storage unavailable */ }
 const MAX_HISTORY = 20; // messages sent back for follow-ups (the server uses only its last Rag:MaxHistoryMessages)
 const NO_DATA = "I don't have enough data.";
 
@@ -247,7 +261,7 @@ els.conversation.addEventListener("click", (e) => {
 
 // ---------- talking to the API ----------
 
-function history() {
+function pastTurns() {
   return turns
     .flatMap((t) => [{ role: "user", content: t.question }, { role: "assistant", content: t.answer }])
     .filter((m) => m.content.trim().length > 0)
@@ -308,12 +322,30 @@ async function ask(question) {
   let finished = false;
 
   try {
-    const response = await fetch("api/chat/ask/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify({ question, history: history() }),
-      signal: controller.signal,
-    });
+    const ask = () => {
+      const headers = { "Content-Type": "application/json", Accept: "text/event-stream" };
+      if (chatKey) headers["X-Chat-Key"] = chatKey;
+      return fetch("api/chat/ask/stream", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ question, history: pastTurns(), knowledgeBase: KB }),
+        signal: controller.signal,
+      });
+    };
+    let response = await ask();
+    if (response.status === 401) {
+      // A private knowledge base: ask for its key once, then try again.
+      const entered = window.prompt(`"${KB}" is private. Enter its chat key:`)?.trim();
+      if (entered) {
+        chatKey = entered;
+        try { sessionStorage.setItem(CHAT_KEY_STORAGE, entered); } catch { /* storage unavailable */ }
+        response = await ask();
+      }
+      if (response.status === 401) {
+        chatKey = "";
+        try { sessionStorage.removeItem(CHAT_KEY_STORAGE); } catch { /* storage unavailable */ }
+      }
+    }
     if (!response.ok) throw new Error(await errorMessage(response));
 
     await readEvents(response, (type, data) => {
@@ -416,7 +448,7 @@ els.newChat.addEventListener("click", () => {
 
 // ---------- embedded in another website (widget.js) ----------
 
-const params = new URLSearchParams(location.search);
+const params = pageParams;
 if (params.has("embed") && window.parent !== window) {
   document.body.classList.add("embedded");
   const title = params.get("title")?.trim().slice(0, 60);

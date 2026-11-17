@@ -18,7 +18,7 @@ public sealed class KeywordIndexingVectorStore(IVectorStore inner, KeywordIndex 
     public async Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct)
     {
         await inner.UpsertAsync(points, ct);
-        foreach (var p in points) keywords.Upsert(p.Id, p.Text, p.Source);
+        foreach (var p in points) keywords.Upsert(p.Id, p.Text, p.Source, p.KnowledgeBase);
     }
 
     public async Task DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct)
@@ -27,6 +27,6 @@ public sealed class KeywordIndexingVectorStore(IVectorStore inner, KeywordIndex 
         keywords.Remove(ids);
     }
 
-    public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, CancellationToken ct) =>
-        inner.SearchAsync(vector, topK, ct);
+    public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, string knowledgeBase, CancellationToken ct) =>
+        inner.SearchAsync(vector, topK, knowledgeBase, ct);
 }

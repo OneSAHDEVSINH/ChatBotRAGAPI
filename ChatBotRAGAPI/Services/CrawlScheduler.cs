@@ -54,7 +54,7 @@ public sealed class CrawlScheduler
             var now = _time.GetUtcNow();
             // Due at once: the first run proves the address works instead of failing silently a day later.
             var schedule = new CrawlSchedule(Guid.NewGuid(), uri!.ToString(), request.MaxPages, request.RemoveMissing,
-                request.IntervalHours, now, now, null, null);
+                request.IntervalHours, now, now, null, null, KnowledgeBaseStore.Normalize(request.KnowledgeBase));
             _schedules.Add(schedule);
             Save();
             return (Describe(schedule), null);
@@ -108,7 +108,7 @@ public sealed class CrawlScheduler
             return null;
 
         var now = _time.GetUtcNow();
-        var jobId = _queue.Enqueue("url", schedule.Url, schedule.Url, schedule.MaxPages, schedule.RemoveMissing);
+        var jobId = _queue.Enqueue("url", schedule.Url, schedule.Url, schedule.MaxPages, schedule.RemoveMissing, schedule.KnowledgeBase);
         _schedules[index] = schedule with
         {
             LastRunAt = now, LastJobId = jobId, NextRunAt = now + TimeSpan.FromHours(schedule.IntervalHours),
@@ -132,7 +132,7 @@ public sealed class CrawlScheduler
     {
         var (status, message) = s.LastJobId is { } id ? _queue.GetStatus(id) : ("", null);
         return new CrawlScheduleInfo(s.Id, s.Url, s.MaxPages, s.RemoveMissing, s.IntervalHours, s.CreatedAt, s.NextRunAt,
-            s.LastRunAt, s.LastJobId, status is "" or "NotFound" ? null : status, message);
+            s.LastRunAt, s.LastJobId, status is "" or "NotFound" ? null : status, message, s.KnowledgeBase);
     }
 
     private List<CrawlSchedule> Load()

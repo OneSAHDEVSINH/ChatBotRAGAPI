@@ -26,7 +26,7 @@ public class RagServiceTests
         public Task DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) => Task.CompletedTask;
         public Task EnsureCollectionAsync(CancellationToken ct) => Task.CompletedTask;
         public Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct) => Task.CompletedTask;
-        public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, CancellationToken ct)
+        public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, string knowledgeBase, CancellationToken ct)
         {
             RequestedTopK = topK;
             return Task.FromResult<IReadOnlyList<SearchHit>>(hits);

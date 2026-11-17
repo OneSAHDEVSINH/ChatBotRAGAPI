@@ -17,14 +17,34 @@ public sealed class ChatController : ControllerBase
     private readonly RagService _ragService;
     private readonly ChatActivity _activity;
     private readonly UsageLog _usage;
+    private readonly KnowledgeBaseStore _knowledgeBases;
     private readonly ILogger<ChatController> _logger;
 
-    public ChatController(RagService ragService, ChatActivity activity, UsageLog usage, ILogger<ChatController> logger)
+    public ChatController(RagService ragService, ChatActivity activity, UsageLog usage, KnowledgeBaseStore knowledgeBases,
+        ILogger<ChatController> logger)
     {
         _ragService = ragService;
         _activity = activity;
         _usage = usage;
+        _knowledgeBases = knowledgeBases;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// 404 for an unknown knowledge base, 401 for a private one without its X-Chat-Key. The management API key also
+    /// opens private ones, so staff can test them from Swagger or the admin page.
+    /// </summary>
+    private ActionResult? CheckAccess(string kb)
+    {
+        var access = _knowledgeBases.CanChat(kb, Request.Headers[KnowledgeBaseStore.ChatKeyHeader].ToString());
+        if (access == KnowledgeBaseStore.Access.KeyRequired && Security.ApiKeyAttribute.IsValidManagementKey(HttpContext))
+            access = KnowledgeBaseStore.Access.Allowed;
+        return access switch
+        {
+            KnowledgeBaseStore.Access.NotFound => NotFound($"Unknown knowledge base '{kb}'."),
+            KnowledgeBaseStore.Access.KeyRequired => Unauthorized($"The knowledge base '{kb}' is private: send its key in the {KnowledgeBaseStore.ChatKeyHeader} header."),
+            _ => null,
+        };
     }
 
     private static bool IsFollowUp(AskRequest request) => request.History?.Any(m => m.Role == "user") == true;
@@ -42,31 +62,37 @@ public sealed class ChatController : ControllerBase
     /// </remarks>
     /// <response code="200">The answer, the passages it was based on, and their sources.</response>
     /// <response code="400">Empty question, or invalid history.</response>
+    /// <response code="401">The knowledge base is private and X-Chat-Key is missing or wrong.</response>
+    /// <response code="404">Unknown knowledge base.</response>
     /// <response code="429">Too many requests from this client; retry shortly.</response>
     /// <response code="503">The embedding/chat backend (Ollama) or vector store is unavailable.</response>
     [HttpPost("ask")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<AskResponse>> Ask([FromBody] AskRequest request, CancellationToken ct)
     {
         if (Validate(request) is { } error) return BadRequest(error);
+        var kb = KnowledgeBaseStore.Normalize(request.KnowledgeBase);
+        if (CheckAccess(kb) is { } denied) return denied;
         MarkChatActive();
 
         var watch = Stopwatch.StartNew();
         AskResponse result;
         try
         {
-            result = await _ragService.AskAsync(request.Question, request.History, ct);
+            result = await _ragService.AskAsync(request.Question, request.History, kb, ct);
         }
         catch (Exception) when (!ct.IsCancellationRequested)
         {
-            _usage.Record(request.Question, UsageLog.Error, 0, watch.Elapsed, IsFollowUp(request));
+            _usage.Record(request.Question, UsageLog.Error, 0, watch.Elapsed, IsFollowUp(request), kb);
             throw;
         }
 
-        _usage.Record(request.Question, UsageLog.OutcomeOf(result.Answer), result.Sources.Count, watch.Elapsed, IsFollowUp(request));
+        _usage.Record(request.Question, UsageLog.OutcomeOf(result.Answer), result.Sources.Count, watch.Elapsed, IsFollowUp(request), kb);
         return Ok(result);
     }
 
@@ -79,33 +105,43 @@ public sealed class ChatController : ControllerBase
     /// </remarks>
     /// <response code="200">An event stream.</response>
     /// <response code="400">Empty question, or invalid history.</response>
+    /// <response code="401">The knowledge base is private and X-Chat-Key is missing or wrong.</response>
+    /// <response code="404">Unknown knowledge base.</response>
     /// <response code="503">The backend is unavailable (before streaming starts).</response>
     [HttpPost("ask/stream")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     [Produces("text/event-stream")]
     public async Task<IResult> AskStream([FromBody] AskRequest request, CancellationToken ct)
     {
         if (Validate(request) is { } error) return Results.BadRequest(error);
+        var kb = KnowledgeBaseStore.Normalize(request.KnowledgeBase);
+        switch (CheckAccess(kb))
+        {
+            case NotFoundObjectResult notFound: return Results.NotFound(notFound.Value);
+            case UnauthorizedObjectResult denied: return Results.Json(denied.Value, statusCode: StatusCodes.Status401Unauthorized);
+        }
         MarkChatActive();
 
         var watch = Stopwatch.StartNew();
         RagService.StreamingAnswer answer;
         try
         {
-            answer = await _ragService.AskStreamingAsync(request.Question, request.History, ct);
+            answer = await _ragService.AskStreamingAsync(request.Question, request.History, kb, ct);
         }
         catch (Exception) when (!ct.IsCancellationRequested)
         {
-            _usage.Record(request.Question, UsageLog.Error, 0, watch.Elapsed, IsFollowUp(request));
+            _usage.Record(request.Question, UsageLog.Error, 0, watch.Elapsed, IsFollowUp(request), kb);
             throw;
         }
-        return TypedResults.ServerSentEvents(Events(answer, request, watch, ct));
+        return TypedResults.ServerSentEvents(Events(answer, request, kb, watch, ct));
     }
 
     private async IAsyncEnumerable<SseItem<object>> Events(
-        RagService.StreamingAnswer answer, AskRequest request, Stopwatch watch, [EnumeratorCancellation] CancellationToken ct)
+        RagService.StreamingAnswer answer, AskRequest request, string kb, Stopwatch watch, [EnumeratorCancellation] CancellationToken ct)
     {
         yield return new SseItem<object>(answer.Sources, "sources");
         yield return new SseItem<object>(answer.Context, "context"); // passage texts, same order as sources
@@ -129,7 +165,7 @@ public sealed class ChatController : ControllerBase
 
             if (failure is not null)
             {
-                _usage.Record(request.Question, UsageLog.Error, answer.Sources.Count, watch.Elapsed, IsFollowUp(request));
+                _usage.Record(request.Question, UsageLog.Error, answer.Sources.Count, watch.Elapsed, IsFollowUp(request), kb);
                 yield return new SseItem<object>(new StreamError(failure), "error");
                 yield break;
             }
@@ -139,7 +175,7 @@ public sealed class ChatController : ControllerBase
         }
 
         var text = full.ToString().Trim();
-        _usage.Record(request.Question, UsageLog.OutcomeOf(text), answer.Sources.Count, watch.Elapsed, IsFollowUp(request));
+        _usage.Record(request.Question, UsageLog.OutcomeOf(text), answer.Sources.Count, watch.Elapsed, IsFollowUp(request), kb);
         yield return new SseItem<object>(new StreamDone(text), "done");
     }
 

@@ -17,7 +17,7 @@ public class InMemoryVectorStoreTests
         await store.UpsertAsync([new VectorPoint(id, [1, 0], "old", "a.txt")], Ct);
         await store.UpsertAsync([new VectorPoint(id, [1, 0], "new", "b.txt")], Ct);
 
-        var hits = await store.SearchAsync([1, 0], 10, Ct);
+        var hits = await store.SearchAsync([1, 0], 10, "default", Ct);
         Assert.Equal(new SearchHit("new", "b.txt", 1.0), Assert.Single(hits));
     }
 
@@ -32,7 +32,7 @@ public class InMemoryVectorStoreTests
             new VectorPoint(Guid.NewGuid(), [1, 1], "diagonal", "s"),
         ], Ct);
 
-        var hits = await store.SearchAsync([2, 0], 2, Ct);
+        var hits = await store.SearchAsync([2, 0], 2, "default", Ct);
         Assert.Equal(["exact", "diagonal"], hits.Select(h => h.Text));
         Assert.Equal(1.0, hits[0].Score, 6);
         Assert.Equal(Math.Sqrt(0.5), hits[1].Score, 6);
@@ -48,7 +48,7 @@ public class InMemoryVectorStoreTests
 
         await store.DeleteAsync([drop, Guid.NewGuid()], Ct);
 
-        Assert.Equal("keep", Assert.Single(await store.SearchAsync([1, 0], 10, Ct)).Text);
+        Assert.Equal("keep", Assert.Single(await store.SearchAsync([1, 0], 10, "default", Ct)).Text);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class InMemoryVectorStoreTests
     {
         var store = new InMemoryVectorStore();
         await store.UpsertAsync([new VectorPoint(Guid.NewGuid(), [1, 0], "t", "s")], Ct);
-        Assert.Equal(0, (await store.SearchAsync([0, 0], 1, Ct))[0].Score);
+        Assert.Equal(0, (await store.SearchAsync([0, 0], 1, "default", Ct))[0].Score);
     }
 }
 

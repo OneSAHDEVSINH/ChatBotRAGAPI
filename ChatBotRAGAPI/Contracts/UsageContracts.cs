@@ -3,7 +3,9 @@ namespace ChatBotRAGAPI.Contracts;
 /// <summary>One chat question as logged in usage.jsonl.</summary>
 /// <param name="Outcome">answered, nodata ("I don't have enough data."), declined (the model refused) or error.</param>
 /// <param name="Question">The question as asked; null when Rag:UsageStoreQuestions is off.</param>
-public sealed record UsageEntry(DateTimeOffset At, string Outcome, string? Question, int Sources, double Seconds, bool FollowUp);
+/// <param name="KnowledgeBase">null in lines written before knowledge bases (they count as "default").</param>
+public sealed record UsageEntry(DateTimeOffset At, string Outcome, string? Question, int Sources, double Seconds, bool FollowUp,
+    string? KnowledgeBase = null);
 
 /// <param name="Date">UTC day, yyyy-MM-dd.</param>
 public sealed record UsageDay(string Date, int Questions, int Answered, int NoData, int Declined, int Errors, int Helpful, int NotHelpful);

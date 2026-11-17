@@ -27,7 +27,7 @@ public sealed partial class EvalService
         _options = options.Value;
     }
 
-    public async Task<CalibrationReport> CalibrateAsync(IReadOnlyList<EvalCase> cases, CancellationToken ct)
+    public async Task<CalibrationReport> CalibrateAsync(IReadOnlyList<EvalCase> cases, CancellationToken ct, string knowledgeBase = KnowledgeBaseStore.Default)
     {
         var current = _options.EffectiveMinScore;
         var setting = _options.UseLocalAiFallback ? "Rag:LocalMinScore" : "Rag:MinScore";
@@ -36,7 +36,7 @@ public sealed partial class EvalService
         var results = new List<CalibrationCaseResult>();
         foreach (var c in cases)
         {
-            var hits = await _store.SearchAsync(await _embeddings.EmbedAsync(c.Question, ct), pool, ct);
+            var hits = await _store.SearchAsync(await _embeddings.EmbedAsync(c.Question, ct), pool, knowledgeBase, ct);
             var best = c.ExpectedSource is null
                 ? hits.FirstOrDefault()
                 : hits.Where(h => h.Source == c.ExpectedSource).MaxBy(h => h.Score);
@@ -67,14 +67,14 @@ public sealed partial class EvalService
             results.Count(r => r.PassesAtCurrent), results.Count, note, results);
     }
 
-    public async Task<AnswerEvalReport> EvaluateAnswersAsync(IReadOnlyList<EvalCase> cases, CancellationToken ct)
+    public async Task<AnswerEvalReport> EvaluateAnswersAsync(IReadOnlyList<EvalCase> cases, CancellationToken ct, string knowledgeBase = KnowledgeBaseStore.Default)
     {
         var total = Stopwatch.StartNew();
         var results = new List<AnswerCaseResult>();
         foreach (var c in cases)
         {
             var watch = Stopwatch.StartNew();
-            var response = await _rag.AskAsync(c.Question, null, ct);
+            var response = await _rag.AskAsync(c.Question, null, knowledgeBase, ct);
             var sources = response.Sources.Select(s => s.Source).ToList();
             var answer = response.Answer.Trim();
             var refused = answer == RagService.NoDataAnswer || answer == ChatClientAnswerGenerator.DeclinedAnswer;

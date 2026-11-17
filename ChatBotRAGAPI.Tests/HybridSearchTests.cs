@@ -86,7 +86,7 @@ public class KeywordIndexTests
         public Task EnsureCollectionAsync(CancellationToken ct) => Task.CompletedTask;
         public Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct) => throw new HttpRequestException("down");
         public Task DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) => throw new HttpRequestException("down");
-        public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, CancellationToken ct) => throw new HttpRequestException("down");
+        public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, string knowledgeBase, CancellationToken ct) => throw new HttpRequestException("down");
     }
 }
 
@@ -107,7 +107,7 @@ public class HybridRetrievalTests
         public Task EnsureCollectionAsync(CancellationToken ct) => Task.CompletedTask;
         public Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct) => Task.CompletedTask;
         public Task DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) => Task.CompletedTask;
-        public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, CancellationToken ct) =>
+        public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, string knowledgeBase, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<SearchHit>>(hits.Take(topK).ToList());
     }
 
@@ -232,7 +232,7 @@ public class KeywordIndexRebuildTests
         public Task EnsureCollectionAsync(CancellationToken ct) => Task.CompletedTask;
         public Task UpsertAsync(IReadOnlyList<VectorPoint> points, CancellationToken ct) => _inner.UpsertAsync(points, ct);
         public Task DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) => _inner.DeleteAsync(ids, ct);
-        public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, CancellationToken ct) => _inner.SearchAsync(vector, topK, ct);
+        public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, string knowledgeBase, CancellationToken ct) => _inner.SearchAsync(vector, topK, knowledgeBase, ct);
     }
 
     [Fact]

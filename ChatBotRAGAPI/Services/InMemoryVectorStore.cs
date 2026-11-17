@@ -4,7 +4,7 @@ namespace ChatBotRAGAPI.Services;
 
 public sealed class InMemoryVectorStore : IVectorStore
 {
-    private sealed record Entry(Guid Id, float[] Vector, string Text, string Source);
+    private sealed record Entry(Guid Id, float[] Vector, string Text, string Source, string KnowledgeBase);
 
     private readonly Dictionary<Guid, Entry> _entries = [];
     private readonly object _sync = new();
@@ -19,7 +19,7 @@ public sealed class InMemoryVectorStore : IVectorStore
         {
             // Same semantics as Qdrant: an existing id is replaced, not duplicated.
             foreach (var p in points)
-                _entries[p.Id] = new Entry(p.Id, p.Vector, p.Text, p.Source);
+                _entries[p.Id] = new Entry(p.Id, p.Vector, p.Text, p.Source, p.KnowledgeBase);
         }
 
         return Task.CompletedTask;
@@ -35,12 +35,13 @@ public sealed class InMemoryVectorStore : IVectorStore
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, CancellationToken ct)
+    public Task<IReadOnlyList<SearchHit>> SearchAsync(float[] vector, int topK, string knowledgeBase, CancellationToken ct)
     {
         List<SearchHit> result;
         lock (_sync)
         {
             result = _entries.Values
+                .Where(e => e.KnowledgeBase == knowledgeBase)
                 .Select(e => new SearchHit(e.Text, e.Source, Cosine(vector, e.Vector)))
                 .OrderByDescending(x => x.Score)
                 .Take(topK)

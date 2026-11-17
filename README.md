@@ -8,6 +8,7 @@ then ask questions that are answered **only** from that content, with numbered c
 - **Cited answers**: `[1]`, `[2]` in the answer match `sources[].id`
 - **Streaming** answers over Server-Sent Events, and **follow-up questions** via conversation history
 - **Documents** are tracked by source: re-ingesting replaces, deleting removes every chunk, and the index survives restarts; embeddings are cached on disk, so restarts and unchanged re-ingests don't re-embed
+- **Multiple knowledge bases**: separate sets of documents searched separately (e.g. a public website bot and a private staff bot); private ones need their chat key
 - **Chat widget for any website**: one script tag adds an "Ask us" button that opens the chat in a panel (see below)
 - **Admin page** at `/admin.html`: backup/restore, an activity log, usage (questions per day, answered vs not, ratings, answer time, the questions it couldn't answer), upload files, crawl sites, schedule re-crawls, follow jobs, delete documents, read feedback (API key)
 - **Chat UI** at `/`: streaming answers, clickable citations that show the passage, follow-up questions, helpful / not helpful ratings
@@ -95,6 +96,7 @@ curl -X POST http://localhost:5170/api/chat/ask -H "Content-Type: application/js
 | `POST /api/chat/ask/stream` | Same, as Server-Sent Events: `sources`, `context`, `delta`..., `done` (or `error`) |
 | `POST /api/feedback` | Rate an answer `{ question, answer, rating: "up"\|"down", sources?, comment? }` (open, like chat) |
 | `GET /api/feedback?rating=down` | Recent ratings with up/down totals (API key) |
+| `GET/POST /api/knowledge-bases`, `PATCH/DELETE /api/knowledge-bases/{id}` | Knowledge bases: create (`{ id, name, private }`, a private one returns its chat key once), rename, make public/private, new key, delete when empty (API key) |
 | `GET /api/backup`, `POST /api/backup/restore` (form field `file`) | Download all documents, schedules, ratings, usage and activity as a .zip; restore one (replaces everything, re-indexes) (API key) |
 | `GET /api/audit?limit=200` | Activity log: who changed what, from where, with what result; rejected API keys (API key) |
 | `GET /api/usage?days=30` | Usage report: questions per day by outcome, ratings, average answer time, top unanswered questions (API key) |
@@ -138,6 +140,20 @@ and allow that site in the bot's configuration (scheme + host, no path), e.g. en
 The chat runs in a frame from the bot's own address, so the site's styles and scripts can't interfere with it. Browsers refuse to show
 the frame on sites that aren't listed, and the admin page can never be framed. The frame is only created when a visitor opens the chat;
 on phones it fills the screen. Close it with the X, Escape or the button again.
+
+To embed a different knowledge base add `data-knowledge-base="website"`. For a private one also add `data-chat-key="..."`:
+the key travels in the frame address's `#fragment` (never sent to a server), but anyone who can view the page can read it,
+so put private knowledge bases only on pages that are private themselves (an intranet).
+
+## Knowledge bases
+
+Everything lives in the `default` knowledge base until you create others (admin page, Knowledge bases section, or
+`POST /api/knowledge-bases`). Then pick one when ingesting (`knowledgeBase` form field on upload, body field on scrape and
+schedules) and when chatting (`knowledgeBase` in the ask body; `?kb=id` on the chat page; `data-knowledge-base` on the
+widget). Each searches only its own documents; the same file name or URL can exist in several, as separate documents.
+A **private** knowledge base answers only requests carrying its chat key in the `X-Chat-Key` header (or the management
+API key). The key is shown once when issued; the admin page gives a chat link with the key (`/?kb=id#key=...`), which the
+chat page moves into the tab's storage and out of the address bar. Existing data needs no migration: it is `default`.
 
 ## Security
 

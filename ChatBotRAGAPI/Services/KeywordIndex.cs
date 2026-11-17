@@ -15,7 +15,7 @@ public sealed class KeywordIndex
     /// <param name="Coverage">Share of the query's distinct terms found in the chunk (0..1).</param>
     public sealed record Hit(Guid Id, string Text, string Source, double Score, double Coverage);
 
-    private sealed record Doc(string Text, string Source, Dictionary<string, int> TermCounts, int Length);
+    private sealed record Doc(string Text, string Source, string KnowledgeBase, Dictionary<string, int> TermCounts, int Length);
 
     private readonly Dictionary<Guid, Doc> _docs = [];
     private readonly Dictionary<string, HashSet<Guid>> _postings = new(StringComparer.Ordinal);
@@ -27,13 +27,13 @@ public sealed class KeywordIndex
         get { lock (_sync) return _docs.Count; }
     }
 
-    public void Upsert(Guid id, string text, string source)
+    public void Upsert(Guid id, string text, string source, string knowledgeBase = KnowledgeBaseStore.Default)
     {
         var counts = Terms(text).GroupBy(t => t).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
         lock (_sync)
         {
             RemoveLocked(id);
-            var doc = new Doc(text, source, counts, counts.Values.Sum());
+            var doc = new Doc(text, source, knowledgeBase, counts, counts.Values.Sum());
             _docs[id] = doc;
             _totalLength += doc.Length;
             foreach (var term in counts.Keys)
@@ -52,7 +52,11 @@ public sealed class KeywordIndex
         }
     }
 
-    public IReadOnlyList<Hit> Search(string query, int topK)
+    /// <summary>
+    /// BM25 over one knowledge base's chunks. Term statistics (IDF, average length) are shared across knowledge bases,
+    /// which shifts scores slightly but not which chunks contain the query's terms (coverage).
+    /// </summary>
+    public IReadOnlyList<Hit> Search(string query, int topK, string knowledgeBase = KnowledgeBaseStore.Default)
     {
         var terms = Terms(query).Distinct(StringComparer.Ordinal).ToList();
         if (terms.Count == 0 || topK <= 0) return [];
@@ -72,6 +76,7 @@ public sealed class KeywordIndex
                 foreach (var id in ids)
                 {
                     var doc = _docs[id];
+                    if (doc.KnowledgeBase != knowledgeBase) continue;
                     var tf = doc.TermCounts[term];
                     var termScore = idf * tf * (K1 + 1) / (tf + K1 * (1 - B + B * doc.Length / avgLength));
                     scores[id] = scores.TryGetValue(id, out var s) ? (s.Score + termScore, s.Matched + 1) : (termScore, 1);

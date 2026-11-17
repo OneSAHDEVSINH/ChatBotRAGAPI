@@ -8,7 +8,7 @@ using System.Text.Json;
 namespace ChatBotRAGAPI.Services;
 
 /// <summary>
-/// Durable list of ingested documents, keyed by source (file name or URL), stored under
+/// Durable list of ingested documents, keyed by knowledge base and source (file name or URL), stored under
 /// <c>{DataDirectory}/documents/</c>: <c>index.json</c> plus each document's extracted text in <c>{docId}.txt</c>
 /// and its chunk embeddings in <c>{docId}.vec</c>.
 /// It knows which vector points belong to which source, so a document can be replaced or deleted
@@ -16,10 +16,14 @@ namespace ChatBotRAGAPI.Services;
 /// </summary>
 public sealed class DocumentRegistry
 {
-    public sealed record Entry(string Source, string SourceType, DateTimeOffset IngestedAt, IReadOnlyList<Guid> ChunkIds)
+    /// <param name="KnowledgeBase">Entries written before knowledge bases have none and read as "default".</param>
+    public sealed record Entry(string Source, string SourceType, DateTimeOffset IngestedAt, IReadOnlyList<Guid> ChunkIds,
+        string KnowledgeBase = KnowledgeBaseStore.Default)
     {
-        public DocumentInfo ToInfo() => new(Source, SourceType, ChunkIds.Count, IngestedAt);
+        public DocumentInfo ToInfo() => new(Source, SourceType, ChunkIds.Count, IngestedAt, KnowledgeBase);
     }
+
+    private static string Key(string knowledgeBase, string source) => $"{knowledgeBase}\0{source}";
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
@@ -51,7 +55,10 @@ public sealed class DocumentRegistry
             try
             {
                 foreach (var entry in JsonSerializer.Deserialize<List<Entry>>(File.ReadAllText(_indexPath)) ?? [])
-                    _entries[entry.Source] = entry;
+                {
+                    var e = entry.KnowledgeBase is null ? entry with { KnowledgeBase = KnowledgeBaseStore.Default } : entry;
+                    _entries[Key(e.KnowledgeBase, e.Source)] = e;
+                }
             }
             catch (JsonException ex)
             {
@@ -73,49 +80,61 @@ public sealed class DocumentRegistry
         return new Releaser(_gate);
     }
 
-    public IReadOnlyList<Entry> List()
+    /// <param name="knowledgeBase">Only this knowledge base's documents; null = all of them.</param>
+    public IReadOnlyList<Entry> List(string? knowledgeBase = null)
     {
-        lock (_sync) return _entries.Values.OrderBy(e => e.Source, StringComparer.Ordinal).ToList();
+        lock (_sync)
+            return _entries.Values.Where(e => knowledgeBase is null || e.KnowledgeBase == knowledgeBase)
+                .OrderBy(e => e.KnowledgeBase, StringComparer.Ordinal).ThenBy(e => e.Source, StringComparer.Ordinal).ToList();
     }
 
-    public Entry? Get(string source)
+    public int Count(string knowledgeBase)
     {
-        lock (_sync) return _entries.GetValueOrDefault(source);
+        lock (_sync) return _entries.Values.Count(e => e.KnowledgeBase == knowledgeBase);
     }
 
-    public string TextPath(string source) => Path.Combine(_directory, $"{DocId(source)}.txt");
+    public Entry? Get(string knowledgeBase, string source)
+    {
+        lock (_sync) return _entries.GetValueOrDefault(Key(knowledgeBase, source));
+    }
+
+    public string TextPath(string knowledgeBase, string source) => Path.Combine(_directory, $"{DocId(knowledgeBase, source)}.txt");
 
     /// <summary>The document's cached chunk embeddings (<see cref="VectorFile"/>).</summary>
-    public string VectorsPath(string source) => Path.Combine(_directory, $"{DocId(source)}.vec");
+    public string VectorsPath(string knowledgeBase, string source) => Path.Combine(_directory, $"{DocId(knowledgeBase, source)}.vec");
 
-    public Task SaveTextAsync(string source, string text, CancellationToken ct) =>
-        File.WriteAllTextAsync(TextPath(source), text, ct);
+    public Task SaveTextAsync(string knowledgeBase, string source, string text, CancellationToken ct) =>
+        File.WriteAllTextAsync(TextPath(knowledgeBase, source), text, ct);
 
     /// <param name="ingestedAt">Defaults to now; pass the original time when merely re-indexing unchanged content.</param>
-    public void Set(string source, string sourceType, IReadOnlyList<Guid> chunkIds, DateTimeOffset? ingestedAt = null)
+    public void Set(string knowledgeBase, string source, string sourceType, IReadOnlyList<Guid> chunkIds, DateTimeOffset? ingestedAt = null)
     {
         lock (_sync)
         {
-            _entries[source] = new Entry(source, sourceType, ingestedAt ?? _time.GetUtcNow(), chunkIds);
+            _entries[Key(knowledgeBase, source)] = new Entry(source, sourceType, ingestedAt ?? _time.GetUtcNow(), chunkIds, knowledgeBase);
             Save();
         }
     }
 
-    public bool Remove(string source)
+    public bool Remove(string knowledgeBase, string source)
     {
         lock (_sync)
         {
-            if (!_entries.Remove(source)) return false;
+            if (!_entries.Remove(Key(knowledgeBase, source))) return false;
             Save();
         }
 
-        File.Delete(TextPath(source));
-        File.Delete(VectorsPath(source));
+        File.Delete(TextPath(knowledgeBase, source));
+        File.Delete(VectorsPath(knowledgeBase, source));
         return true;
     }
 
-    /// <summary>File-name-safe id for a source (URLs and file names can contain any character).</summary>
-    private static Guid DocId(string source) => new(SHA256.HashData(Encoding.UTF8.GetBytes(source)).AsSpan(0, 16));
+    /// <summary>
+    /// File-name-safe id for a document (URLs and file names can contain any character). "default" keeps the id it had
+    /// before knowledge bases existed (the source alone), so existing data needs no migration.
+    /// </summary>
+    private static Guid DocId(string knowledgeBase, string source) => new(SHA256.HashData(Encoding.UTF8.GetBytes(
+        knowledgeBase == KnowledgeBaseStore.Default ? source : $"{knowledgeBase}\0{source}")).AsSpan(0, 16));
 
     private void Save()
     {

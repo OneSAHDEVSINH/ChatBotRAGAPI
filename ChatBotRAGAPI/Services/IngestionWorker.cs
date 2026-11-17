@@ -91,18 +91,18 @@ public sealed class IngestionWorker : BackgroundService
                 var result = await _crawler.CrawlAsync(new Uri(job.SourceValue), job.SourceName, job.MaxPages,
                     async (source, page, token) =>
                     {
-                        await StoreDocumentAsync(source, "url", page.Text, saveText: true, token);
+                        await StoreDocumentAsync(job.KnowledgeBase, source, "url", page.Text, saveText: true, token);
                         if (job.MaxPages > 1) _queue.MarkRunning(job.JobId, $"Crawling: {++pages} page(s) ingested so far.");
                     }, ct);
                 if (job.MaxPages <= 1) return null;
-                return job.RemoveMissing ? $"{result} {await RemoveMissingPagesAsync(result, ct)}" : result.ToString();
+                return job.RemoveMissing ? $"{result} {await RemoveMissingPagesAsync(job.KnowledgeBase, result, ct)}" : result.ToString();
 
             case "file":
-                await StoreDocumentAsync(job.SourceName, "file", await _extractor.ExtractAsync(job.SourceValue, ct), saveText: true, ct);
+                await StoreDocumentAsync(job.KnowledgeBase, job.SourceName, "file", await _extractor.ExtractAsync(job.SourceValue, ct), saveText: true, ct);
                 return null;
 
             case ReindexSourceType:
-                await StoreDocumentAsync(job.SourceName, ReindexSourceType, await File.ReadAllTextAsync(job.SourceValue, ct), saveText: false, ct);
+                await StoreDocumentAsync(job.KnowledgeBase, job.SourceName, ReindexSourceType, await File.ReadAllTextAsync(job.SourceValue, ct), saveText: false, ct);
                 return null;
 
             default:
@@ -115,7 +115,7 @@ public sealed class IngestionWorker : BackgroundService
     /// short by maxPages (pages it did not reach may still exist), and never a page that failed with a possibly
     /// temporary error (<see cref="WebCrawler.CrawlResult.Kept"/>).
     /// </summary>
-    private async Task<string> RemoveMissingPagesAsync(WebCrawler.CrawlResult result, CancellationToken ct)
+    private async Task<string> RemoveMissingPagesAsync(string knowledgeBase, WebCrawler.CrawlResult result, CancellationToken ct)
     {
         if (!result.Complete || result.Kept is null || result.InScope is null)
             return "Nothing removed: the crawl stopped at maxPages, so pages it did not reach may still exist.";
@@ -123,13 +123,13 @@ public sealed class IngestionWorker : BackgroundService
         var removed = new List<string>();
         using (await _registry.LockAsync(ct))
         {
-            foreach (var entry in _registry.List())
+            foreach (var entry in _registry.List(knowledgeBase))
             {
                 if (entry.SourceType != "url" || !Uri.TryCreate(entry.Source, UriKind.Absolute, out var url)) continue;
                 if (!result.InScope(url) || result.Kept.Contains(WebCrawler.Key(url))) continue;
 
                 await _vectorStore.DeleteAsync(entry.ChunkIds.ToList(), ct);
-                _registry.Remove(entry.Source);
+                _registry.Remove(knowledgeBase, entry.Source);
                 removed.Add(entry.Source);
             }
         }
@@ -142,14 +142,14 @@ public sealed class IngestionWorker : BackgroundService
     /// Stores one source as a whole document: its previous version (same source name) is replaced,
     /// including deleting chunks that no longer exist in the new text.
     /// </summary>
-    private async Task StoreDocumentAsync(string source, string sourceType, string text, bool saveText, CancellationToken ct)
+    private async Task StoreDocumentAsync(string kb, string source, string sourceType, string text, bool saveText, CancellationToken ct)
     {
         if (saveText)
-            await _registry.SaveTextAsync(source, text, ct);
+            await _registry.SaveTextAsync(kb, source, text, ct);
 
         // Chunks whose text is unchanged keep their id, so their vectors come from the cache instead of the model.
         var modelId = _embeddingClient.ModelId;
-        var cached = VectorFile.Read(_registry.VectorsPath(source), modelId, _logger);
+        var cached = VectorFile.Read(_registry.VectorsPath(kb, source), modelId, _logger);
         var vectorsById = new Dictionary<Guid, float[]>();
         var embedded = 0;
 
@@ -157,7 +157,7 @@ public sealed class IngestionWorker : BackgroundService
         var chunks = _chunker.Chunk(text, _options.ChunkSize, _options.ChunkOverlap);
         foreach (var batch in chunks.Chunk(Math.Max(1, _options.EmbeddingBatchSize)))
         {
-            var ids = batch.Select(chunk => ChunkId(source, chunk)).ToList();
+            var ids = batch.Select(chunk => ChunkId(kb, source, chunk)).ToList();
             var missing = Enumerable.Range(0, batch.Length).Where(i => !cached.ContainsKey(ids[i])).ToList();
             if (missing.Count > 0)
             {
@@ -168,7 +168,7 @@ public sealed class IngestionWorker : BackgroundService
                 embedded += missing.Count;
             }
 
-            var points = batch.Select((chunk, i) => new VectorPoint(ids[i], cached[ids[i]], chunk, source)).ToList();
+            var points = batch.Select((chunk, i) => new VectorPoint(ids[i], cached[ids[i]], chunk, source, kb)).ToList();
             await _vectorStore.UpsertAsync(points, ct);
             chunkIds.AddRange(ids);
             foreach (var p in points) vectorsById[p.Id] = p.Vector;
@@ -181,17 +181,17 @@ public sealed class IngestionWorker : BackgroundService
         using (await _registry.LockAsync(ct))
         {
             // Only the current chunks are kept, so the cache never grows with old versions of the text.
-            VectorFile.Write(_registry.VectorsPath(source), modelId, vectorsById);
+            VectorFile.Write(_registry.VectorsPath(kb, source), modelId, vectorsById);
 
-            var previous = _registry.Get(source);
+            var previous = _registry.Get(kb, source);
             var stale = previous?.ChunkIds.Except(chunkIds).ToList() ?? [];
             await _vectorStore.DeleteAsync(stale, ct);
 
             var ids = chunkIds.Distinct().ToList();
             if (sourceType == ReindexSourceType)
-                _registry.Set(source, previous?.SourceType ?? "file", ids, previous?.IngestedAt);
+                _registry.Set(kb, source, previous?.SourceType ?? "file", ids, previous?.IngestedAt);
             else
-                _registry.Set(source, sourceType, ids);
+                _registry.Set(kb, source, sourceType, ids);
         }
     }
 
@@ -208,16 +208,16 @@ public sealed class IngestionWorker : BackgroundService
         var added = 0;
         foreach (var doc in _registry.List())
         {
-            var path = _registry.TextPath(doc.Source);
+            var path = _registry.TextPath(doc.KnowledgeBase, doc.Source);
             if (!File.Exists(path)) continue;
 
             var known = doc.ChunkIds.ToHashSet();
             var text = await File.ReadAllTextAsync(path, ct);
             foreach (var chunk in _chunker.Chunk(text, _options.ChunkSize, _options.ChunkOverlap))
             {
-                var id = ChunkId(doc.Source, chunk);
+                var id = ChunkId(doc.KnowledgeBase, doc.Source, chunk);
                 if (!known.Contains(id)) continue;
-                _keywords.Upsert(id, chunk, doc.Source);
+                _keywords.Upsert(id, chunk, doc.Source, doc.KnowledgeBase);
                 added++;
             }
         }
@@ -234,9 +234,9 @@ public sealed class IngestionWorker : BackgroundService
         var documents = _registry.List();
         foreach (var doc in documents)
         {
-            var path = _registry.TextPath(doc.Source);
+            var path = _registry.TextPath(doc.KnowledgeBase, doc.Source);
             if (File.Exists(path))
-                _queue.Enqueue(ReindexSourceType, path, doc.Source);
+                _queue.Enqueue(ReindexSourceType, path, doc.Source, knowledgeBase: doc.KnowledgeBase);
             else
                 _logger.LogWarning("Stored text for {Source} is missing; it cannot be re-indexed", doc.Source);
         }
@@ -319,12 +319,14 @@ public sealed class IngestionWorker : BackgroundService
 
     /// <summary>
     /// Deterministic id per (source, chunk text): re-ingesting a source overwrites its unchanged chunks
-    /// instead of duplicating them. The source is part of the id so two documents containing the same
-    /// text own separate points, and deleting one can't remove the other's.
+    /// instead of duplicating them. The source (and, outside "default", the knowledge base) is part of the id so two
+    /// documents containing the same text own separate points, and deleting one can't remove the other's. "default"
+    /// keeps the pre-knowledge-base formula, so existing points and caches stay valid.
     /// </summary>
-    private static Guid ChunkId(string source, string chunk)
+    public static Guid ChunkId(string knowledgeBase, string source, string chunk)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{source}\0{chunk}"));
+        var key = knowledgeBase == KnowledgeBaseStore.Default ? $"{source}\0{chunk}" : $"{knowledgeBase}\0{source}\0{chunk}";
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         return new Guid(hash.AsSpan(0, 16));
     }
 }

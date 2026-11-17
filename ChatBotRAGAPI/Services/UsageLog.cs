@@ -46,12 +46,13 @@ public sealed class UsageLog
     };
 
     /// <summary>Never throws: losing a usage line must not fail a chat answer.</summary>
-    public void Record(string question, string outcome, int sources, TimeSpan elapsed, bool followUp)
+    public void Record(string question, string outcome, int sources, TimeSpan elapsed, bool followUp,
+        string knowledgeBase = KnowledgeBaseStore.Default)
     {
         var text = question.Trim();
         if (text.Length > MaxQuestionChars) text = text[..MaxQuestionChars] + "…";
         var entry = new UsageEntry(_time.GetUtcNow(), outcome, _storeQuestions ? text : null, sources,
-            Math.Round(elapsed.TotalSeconds, 2), followUp);
+            Math.Round(elapsed.TotalSeconds, 2), followUp, knowledgeBase);
         try
         {
             lock (_sync)
@@ -72,13 +73,15 @@ public sealed class UsageLog
     }
 
     /// <summary>Totals, a row per UTC day and the most asked unanswered questions for the last <paramref name="days"/> days.</summary>
-    public UsageReport Report(int days)
+    /// <param name="knowledgeBase">Only this knowledge base's questions; null = all (ratings are never filtered: they carry no knowledge base).</param>
+    public UsageReport Report(int days, string? knowledgeBase = null)
     {
         var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
         var first = today.AddDays(1 - days);
         var since = new DateTimeOffset(first.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
-        var entries = Read().Where(e => e.At >= since).ToList();
+        var entries = Read().Where(e => e.At >= since
+            && (knowledgeBase is null || (e.KnowledgeBase ?? KnowledgeBaseStore.Default) == knowledgeBase)).ToList();
         var ratings = _feedback.All().Where(f => f.At >= since).ToList();
 
         static string Day(DateTimeOffset at) => at.UtcDateTime.ToString("yyyy-MM-dd");
