@@ -37,20 +37,11 @@ public sealed class IngestionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public ActionResult<EnqueueResponse> Scrape([FromBody] ScrapeRequest request)
     {
-        if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var uri) || !UrlSafety.IsAllowedScheme(uri))
-            return BadRequest("Invalid URL. Only absolute http/https URLs are supported.");
-
-        // Fast rejection for literal private IPs; hostnames are checked at connect time by the scraper's handler.
-        if (System.Net.IPAddress.TryParse(uri.Host.Trim('[', ']'), out var ip) && !UrlSafety.IsPublicAddress(ip))
-            return BadRequest("URLs pointing to private, loopback or link-local addresses are not allowed.");
-
         var maxPages = request.MaxPages ?? 1;
-        if (maxPages < 1 || maxPages > _options.MaxCrawlPages)
-            return BadRequest($"maxPages must be between 1 and {_options.MaxCrawlPages}.");
-        if (request.RemoveMissing && maxPages == 1)
-            return BadRequest("removeMissing needs a crawl: set maxPages above 1.");
+        if (ScrapeTarget.Validate(request.Url, maxPages, request.RemoveMissing, _options.MaxCrawlPages, out var uri) is { } error)
+            return BadRequest(error);
 
-        var jobId = _queue.Enqueue("url", request.Url, uri.ToString(), maxPages, request.RemoveMissing);
+        var jobId = _queue.Enqueue("url", request.Url, uri!.ToString(), maxPages, request.RemoveMissing);
         return Accepted(new EnqueueResponse(jobId, "Queued"));
     }
 

@@ -109,7 +109,7 @@ async function loadJobs() {
     const active = jobs.some((j) => j.status === "Queued" || j.status === "Running");
     clearTimeout(jobsTimer);
     if (active) jobsTimer = setTimeout(async () => { await loadJobs(); }, 3000);
-    else if (jobsTimer) { jobsTimer = null; loadDocuments(); }
+    else if (jobsTimer) { jobsTimer = null; loadDocuments(); loadSchedules(); }
   } catch (err) {
     handle(err, "add-status");
   }
@@ -201,6 +201,98 @@ $("crawl-form").addEventListener("submit", async (e) => {
   }
 });
 
+// ---------- scheduled crawls ----------
+
+const every = (hours) => (hours === 168 ? "week" : hours === 24 ? "day" : `${hours} hours`);
+
+function actionButton(text, label, className, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `btn ${className} btn--small`;
+  button.textContent = text;
+  button.setAttribute("aria-label", label);
+  button.addEventListener("click", () => onClick(button));
+  return button;
+}
+
+async function loadSchedules() {
+  try {
+    const schedules = await api("api/schedules");
+    $("schedules").replaceChildren(...schedules.map((s) => {
+      const tr = document.createElement("tr");
+      const last = document.createElement("td");
+      last.className = "wrap";
+      if (s.lastJobStatus) last.append(badge(s.lastJobStatus), document.createTextNode(` ${s.lastJobMessage ?? ""}`));
+      else last.textContent = s.lastRunAt ? when(s.lastRunAt) : "Not run yet";
+      const actions = document.createElement("td");
+      actions.className = "actions";
+      actions.append(
+        actionButton("Run now", `Run the crawl of ${s.url} now`, "btn--card", (b) => runSchedule(s.id, b)),
+        actionButton("Delete", `Delete the schedule for ${s.url}`, "btn--danger", (b) => deleteSchedule(s, b)));
+      const pages = `${s.maxPages} page${s.maxPages === 1 ? "" : "s"}${s.removeMissing ? ", removes gone pages" : ""}`;
+      tr.append(cell(`${s.url} (${pages})`, "wrap"), cell(every(s.intervalHours), "nowrap"), cell(when(s.nextRunAt), "nowrap"), last, actions);
+      return tr;
+    }));
+    $("schedules-empty").hidden = schedules.length > 0;
+    clearError("schedules-status");
+  } catch (err) {
+    handle(err, "schedules-status");
+  }
+}
+
+$("schedule-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const button = submitButton(e);
+  button.disabled = true;
+  try {
+    const maxPages = Number($("schedule-pages").value);
+    await api("api/schedules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: $("schedule-url").value.trim(),
+        maxPages,
+        removeMissing: maxPages > 1 && $("schedule-remove").checked,
+        intervalHours: Number($("schedule-interval").value),
+      }),
+    });
+    say("schedules-status", "Scheduled. The first crawl starts within a minute.", "ok");
+    $("schedule-url").value = "";
+    await loadSchedules();
+  } catch (err) {
+    handle(err, "schedules-status");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+async function runSchedule(id, button) {
+  button.disabled = true;
+  try {
+    await api(`api/schedules/${id}/run`, { method: "POST" });
+    say("schedules-status", "Crawl started. Follow it in Jobs below.", "ok");
+    loadJobs();
+  } catch (err) {
+    handle(err, "schedules-status");
+  } finally {
+    button.disabled = false;
+    loadSchedules();
+  }
+}
+
+async function deleteSchedule(schedule, button) {
+  if (!window.confirm(`Stop re-crawling ${schedule.url}? Pages already ingested stay.`)) return;
+  button.disabled = true;
+  try {
+    await api(`api/schedules/${schedule.id}`, { method: "DELETE" });
+    say("schedules-status", `Stopped re-crawling ${schedule.url}.`, "ok");
+    await loadSchedules();
+  } catch (err) {
+    button.disabled = false;
+    handle(err, "schedules-status");
+  }
+}
+
 // ---------- feedback ----------
 
 async function loadFeedback() {
@@ -226,8 +318,9 @@ async function loadFeedback() {
 // ---------- key ----------
 
 function loadAll() {
-  ["add-status", "docs-status"].forEach(clearError);
+  ["add-status", "docs-status", "schedules-status"].forEach(clearError);
   loadStatus();
+  loadSchedules();
   loadJobs();
   loadDocuments();
   loadFeedback();
@@ -250,6 +343,7 @@ $("forget-key").addEventListener("click", () => {
 
 $("refresh-status").addEventListener("click", loadStatus);
 $("refresh-jobs").addEventListener("click", loadJobs);
+$("refresh-schedules").addEventListener("click", loadSchedules);
 $("refresh-docs").addEventListener("click", loadDocuments);
 $("refresh-feedback").addEventListener("click", loadFeedback);
 $("feedback-filter").addEventListener("change", loadFeedback);

@@ -5,6 +5,7 @@ using ChatBotRAGAPI.Services.Health;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using ChatBotRAGAPI.Settings;
 using ChatBotRAGAPI.Swagger;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 
@@ -111,6 +112,9 @@ builder.Services.AddSingleton<RagService>();
 builder.Services.AddSingleton<EvalService>();
 builder.Services.AddSingleton<FeedbackStore>();
 builder.Services.AddHostedService<IngestionWorker>();
+builder.Services.TryAddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<CrawlScheduler>();
+builder.Services.AddHostedService<CrawlSchedulerService>();
 
 var app = builder.Build();
 

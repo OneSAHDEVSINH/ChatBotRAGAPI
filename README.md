@@ -8,7 +8,7 @@ then ask questions that are answered **only** from that content, with numbered c
 - **Cited answers**: `[1]`, `[2]` in the answer match `sources[].id`
 - **Streaming** answers over Server-Sent Events, and **follow-up questions** via conversation history
 - **Documents** are tracked by source: re-ingesting replaces, deleting removes every chunk, and the index survives restarts; embeddings are cached on disk, so restarts and unchanged re-ingests don't re-embed
-- **Admin page** at `/admin.html`: upload files, crawl sites, follow jobs, delete documents, read feedback (API key)
+- **Admin page** at `/admin.html`: upload files, crawl sites, schedule re-crawls, follow jobs, delete documents, read feedback (API key)
 - **Chat UI** at `/`: streaming answers, clickable citations that show the passage, follow-up questions, helpful / not helpful ratings
 - Runs fully local with [Ollama](https://ollama.com); a no-LLM fallback mode needs nothing else at all
 
@@ -94,6 +94,7 @@ curl -X POST http://localhost:5170/api/chat/ask -H "Content-Type: application/js
 | `POST /api/chat/ask/stream` | Same, as Server-Sent Events: `sources`, `context`, `delta`..., `done` (or `error`) |
 | `POST /api/feedback` | Rate an answer `{ question, answer, rating: "up"\|"down", sources?, comment? }` (open, like chat) |
 | `GET /api/feedback?rating=down` | Recent ratings with up/down totals (API key) |
+| `GET/POST /api/schedules`, `DELETE /api/schedules/{id}`, `POST /api/schedules/{id}/run` | Scheduled re-crawls `{ url, maxPages, removeMissing, intervalHours }` (API key) |
 | `POST /api/eval/calibrate` | Suggest `MinScore` for the current embedding model from known questions (no generation) |
 | `POST /api/eval/answers` | Ask each known question for real; score retrieval, facts, citations and refusals |
 | `GET /health` | Liveness: the process answers (for restarts) |

@@ -112,7 +112,9 @@ th:last-child, td:last-child { padding-right: 0; }
 .wrap { min-width: 12rem; max-width: 40ch; overflow-wrap: anywhere; }
 .nowrap { white-space: nowrap; }
 .muted { color: var(--color-muted); }
-.actions { text-align: right; }
+.actions { text-align: right; white-space: nowrap; }
+.actions .btn + .btn { margin-left: var(--space-xs); }
+.schedule-form .field:first-of-type { flex-basis: 18rem; }
 
 /* State: an ink outline, red only for failure, dashed while still in progress. */
 .badge {
